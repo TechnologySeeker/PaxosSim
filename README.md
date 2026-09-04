@@ -108,27 +108,6 @@ delivery, disconnect/reconnect) possible without real concurrency.
 
 ## Project structure
 
-```
-paxos/
-├── ballot.py          # comparable (number, node_id) ballots
-├── messages.py         # Prepare/Promise/AcceptRequest/Accepted/Nack
-├── acceptor.py         # Paxos acceptor role
-├── proposer.py         # Paxos proposer role (Phase 1 + Phase 2)
-├── learner.py          # tracks quorum and learns chosen values
-├── network.py           # SimulatedNetwork: deliver/drop/delay/partition
-├── node.py              # a cluster node (proposer + acceptor + learner)
-├── state_machine.py     # replicated key-value store
-└── cluster.py           # wires nodes + network together
-
-tests/
-├── test_acceptor.py
-├── test_proposer.py
-├── test_consensus.py
-├── test_failures.py
-├── test_partitions.py
-└── test_replication.py
-```
-
 ## Status
 
 Scaffold only — modules are currently empty. See the build order and test
