@@ -116,17 +116,21 @@ src/
 │   │   ├── Command.java
 │   │   ├── LogEntry.java
 │   │   └── AcceptorState.java
-│   └── message/                # Paxos protocol message types
-│       ├── Message.java
-│       ├── Prepare.java
-│       ├── Promise.java
-│       ├── AcceptRequest.java
-│       ├── Accepted.java
-│       └── Nack.java
+│   ├── message/                 # Paxos protocol message types
+│   │   ├── Message.java
+│   │   ├── Prepare.java
+│   │   ├── Promise.java
+│   │   ├── AcceptRequest.java
+│   │   ├── Accepted.java
+│   │   └── Nack.java
+│   └── role/                    # proposer/acceptor/learner roles
+│       └── Acceptor.java
 └── test/java/paxossim/
     ├── RunAllTests.java
     ├── core/
     │   └── BallotTest.java
+    ├── role/
+    │   └── AcceptorTest.java
     └── testing/                 # dependency-free assertion + test runner
         ├── Assertions.java
         └── TestRunner.java
