@@ -83,6 +83,9 @@
     {"seq":79,"type":"RECEIVE","fromNode":"C","toNode":"A-learner","message":"Accepted","ballot":"(2,B)","slot":0},
     {"seq":80,"type":"RECEIVE","fromNode":"C","toNode":"B-learner","message":"Accepted","ballot":"(2,B)","slot":0},
     {"seq":81,"type":"RECEIVE","fromNode":"C","toNode":"C-learner","message":"Accepted","ballot":"(2,B)","slot":0},
-    {"seq":82,"type":"NOTE","note":"A's lower-ballot accept was rejected everywhere — A gets preempted; B's value is chosen"}
+    {"seq":82,"type":"NOTE","note":"A's lower-ballot accept was rejected everywhere — A gets preempted; B's value is chosen"},
+    {"seq":83,"type":"STATE_CHANGE","toNode":"A","slot":0,"value":"SET x FROM-B","note":"applied SET x FROM-B at slot 0"},
+    {"seq":84,"type":"STATE_CHANGE","toNode":"B","slot":0,"value":"SET x FROM-B","note":"applied SET x FROM-B at slot 0"},
+    {"seq":85,"type":"STATE_CHANGE","toNode":"C","slot":0,"value":"SET x FROM-B","note":"applied SET x FROM-B at slot 0"}
   ]
 }

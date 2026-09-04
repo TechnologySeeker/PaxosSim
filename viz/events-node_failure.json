@@ -40,6 +40,8 @@
     {"seq":36,"type":"RECEIVE","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},
     {"seq":37,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},
     {"seq":38,"type":"DROPPED","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},
-    {"seq":39,"type":"NOTE","note":"A + B alone still reach quorum (2 of 3)"}
+    {"seq":39,"type":"NOTE","note":"A + B alone still reach quorum (2 of 3)"},
+    {"seq":40,"type":"STATE_CHANGE","toNode":"A","slot":0,"value":"SET x 10","note":"applied SET x 10 at slot 0"},
+    {"seq":41,"type":"STATE_CHANGE","toNode":"B","slot":0,"value":"SET x 10","note":"applied SET x 10 at slot 0"}
   ]
 }
