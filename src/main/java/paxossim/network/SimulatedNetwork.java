@@ -81,4 +81,13 @@ public final class SimulatedNetwork {
         }
         return delivered;
     }
+
+    /**
+     * Discards the oldest pending envelope in FIFO order without delivering
+     * it — a message lost in transit. Returns the dropped envelope, or
+     * {@code null} if the queue was empty.
+     */
+    public Envelope dropNext() {
+        return queue.pollFirst();
+    }
 }

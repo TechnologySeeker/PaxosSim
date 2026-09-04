@@ -135,6 +135,8 @@ src/
     ├── RunAllTests.java
     ├── core/
     │   └── BallotTest.java
+    ├── integration/              # end-to-end, multi-role Paxos scenarios
+    │   └── SingleDecreePaxosTest.java
     ├── network/
     │   └── SimulatedNetworkTest.java
     ├── node/

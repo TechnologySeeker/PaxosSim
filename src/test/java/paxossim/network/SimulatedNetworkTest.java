@@ -57,6 +57,29 @@ public class SimulatedNetworkTest {
         assertEquals(1, network.pendingCount(), "delivering one envelope should leave the rest pending");
     }
 
+    public void testDropNextDiscardsTheOldestEnvelopeWithoutDelivering() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        List<Message> received = new ArrayList<>();
+        network.register("B", (from, message) -> received.add(message));
+        Message dropped = new Prepare(new Ballot(1, "A"), 0);
+        Message kept = new Prepare(new Ballot(1, "A"), 1);
+        network.send("A", "B", dropped);
+        network.send("A", "B", kept);
+
+        Envelope droppedEnvelope = network.dropNext();
+        network.deliverNext();
+
+        assertEquals(dropped, droppedEnvelope.message(), "dropNext should discard the oldest envelope");
+        assertEquals(1, received.size(), "the handler should only see the message that wasn't dropped");
+        assertEquals(kept, received.get(0), "the surviving message should still be delivered normally");
+    }
+
+    public void testDropNextReturnsNullWhenQueueIsEmpty() {
+        SimulatedNetwork network = new SimulatedNetwork();
+
+        assertTrue(network.dropNext() == null, "dropping from an empty network should be a no-op");
+    }
+
     public void testDeliverNextDispatchesToRegisteredHandler() {
         SimulatedNetwork network = new SimulatedNetwork();
         List<Message> received = new ArrayList<>();

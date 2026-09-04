@@ -1,6 +1,7 @@
 package paxossim;
 
 import paxossim.core.BallotTest;
+import paxossim.integration.SingleDecreePaxosTest;
 import paxossim.network.SimulatedNetworkTest;
 import paxossim.node.NodeTest;
 import paxossim.role.AcceptorTest;
@@ -14,6 +15,6 @@ public final class RunAllTests {
 
     public static void main(String[] args) {
         TestRunner.run(BallotTest.class, AcceptorTest.class, ProposerTest.class,
-                SimulatedNetworkTest.class, NodeTest.class);
+                SimulatedNetworkTest.class, NodeTest.class, SingleDecreePaxosTest.class);
     }
 }
