@@ -131,7 +131,8 @@ src/
 │   │   └── Node.java
 │   └── role/                    # proposer/acceptor/learner roles
 │       ├── Acceptor.java
-│       └── Proposer.java
+│       ├── Proposer.java
+│       └── Learner.java
 └── test/java/paxossim/
     ├── RunAllTests.java
     ├── core/
@@ -146,7 +147,8 @@ src/
     │   └── NodeTest.java
     ├── role/
     │   ├── AcceptorTest.java
-    │   └── ProposerTest.java
+    │   ├── ProposerTest.java
+    │   └── LearnerTest.java
     └── testing/                 # dependency-free assertion + test runner
         ├── Assertions.java
         └── TestRunner.java

@@ -88,6 +88,39 @@ public class NodeTest {
         assertTrue(proposerInbox.get(1) instanceof Promise, "a different node should not see acceptor1's promised ballot");
     }
 
+    public void testNodeBroadcastsAcceptedToRegisteredLearners() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("acceptor1", network, List.of("learner1", "learner2"));
+        List<Message> proposerInbox = new ArrayList<>();
+        List<Message> learner1Inbox = new ArrayList<>();
+        List<Message> learner2Inbox = new ArrayList<>();
+        network.register("proposer1", (from, message) -> proposerInbox.add(message));
+        network.register("learner1", (from, message) -> learner1Inbox.add(message));
+        network.register("learner2", (from, message) -> learner2Inbox.add(message));
+        Command value = Command.set("x", "10");
+
+        network.send("proposer1", "acceptor1", new AcceptRequest(new Ballot(1, "A"), 0, value));
+        network.deliverAll();
+
+        assertTrue(proposerInbox.get(0) instanceof Accepted, "the proposer should still get the direct reply");
+        assertEquals(1, learner1Inbox.size(), "learner1 should also be notified of the accepted value");
+        assertEquals(1, learner2Inbox.size(), "learner2 should also be notified of the accepted value");
+        assertTrue(learner1Inbox.get(0) instanceof Accepted, "learners should receive an Accepted message");
+        assertEquals(value, ((Accepted) learner1Inbox.get(0)).value(), "the broadcast should carry the accepted value");
+    }
+
+    public void testNodeDoesNotBroadcastToLearnersOnAPromiseOrNack() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("acceptor1", network, List.of("learner1"));
+        List<Message> learner1Inbox = new ArrayList<>();
+        network.register("learner1", (from, message) -> learner1Inbox.add(message));
+
+        network.send("proposer1", "acceptor1", new Prepare(new Ballot(1, "A"), 0));
+        network.deliverAll();
+
+        assertEquals(0, learner1Inbox.size(), "a Promise reply should not be broadcast to learners");
+    }
+
     public void testNodeRejectsMessageTypesWithoutProposerOrLearnerLogicYet() {
         SimulatedNetwork network = new SimulatedNetwork();
         Node node = new Node("acceptor1", network);

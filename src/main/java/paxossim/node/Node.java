@@ -1,30 +1,42 @@
 package paxossim.node;
 
 import paxossim.message.AcceptRequest;
+import paxossim.message.Accepted;
 import paxossim.message.Message;
 import paxossim.message.Prepare;
 import paxossim.network.SimulatedNetwork;
 import paxossim.role.Acceptor;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
  * A cluster member, addressed by {@code id} on a {@link SimulatedNetwork}.
  * Every node plays all three Paxos roles (proposer, acceptor, learner); for
- * now this wraps only the acceptor role, since proposer and learner logic
- * don't exist yet. A node registers itself with the network on construction
- * so that any message addressed to its id is handled and replied to
- * automatically.
+ * now this wraps only the acceptor role, since proposer logic lives in its
+ * own standalone {@link paxossim.role.Proposer} and learner logic in
+ * {@link paxossim.role.Learner}. A node registers itself with the network on
+ * construction so that any message addressed to its id is handled and
+ * replied to automatically; whenever it accepts a value, it also broadcasts
+ * that {@link Accepted} to every registered learner id, mirroring how real
+ * acceptors notify learners directly rather than only the requesting
+ * proposer.
  */
 public final class Node {
 
     private final String id;
     private final SimulatedNetwork network;
+    private final List<String> learnerIds;
     private final Acceptor acceptor = new Acceptor();
 
     public Node(String id, SimulatedNetwork network) {
+        this(id, network, List.of());
+    }
+
+    public Node(String id, SimulatedNetwork network, List<String> learnerIds) {
         this.id = Objects.requireNonNull(id, "id");
         this.network = Objects.requireNonNull(network, "network");
+        this.learnerIds = List.copyOf(learnerIds);
         network.register(id, this::onMessage);
     }
 
@@ -33,7 +45,13 @@ public final class Node {
     }
 
     private void onMessage(String from, Message message) {
-        network.send(id, from, handle(message));
+        Message reply = handle(message);
+        network.send(id, from, reply);
+        if (reply instanceof Accepted accepted) {
+            for (String learnerId : learnerIds) {
+                network.send(id, learnerId, accepted);
+            }
+        }
     }
 
     Message handle(Message message) {
