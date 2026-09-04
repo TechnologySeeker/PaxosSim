@@ -2,6 +2,7 @@ package paxossim.node;
 
 import paxossim.core.Ballot;
 import paxossim.core.Command;
+import paxossim.events.Event;
 import paxossim.message.AcceptRequest;
 import paxossim.message.Accepted;
 import paxossim.message.Message;
@@ -18,6 +19,52 @@ import static paxossim.testing.Assertions.assertEquals;
 import static paxossim.testing.Assertions.assertTrue;
 
 public class NodeTest {
+
+    public void testPromisingRecordsAPromiseEvent() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("acceptor1", network);
+
+        network.send("proposer1", "acceptor1", new Prepare(new Ballot(1, "A"), 0));
+        network.deliverAll();
+
+        Event event = findFirst(network, "PROMISE");
+        assertEquals("acceptor1", event.toNode(), "the promising node's id should be recorded");
+        assertEquals("(1,A)", event.ballot(), "the promised ballot should be recorded");
+        assertEquals(Integer.valueOf(0), event.slot(), "the slot should be recorded");
+    }
+
+    public void testAcceptingRecordsAnAcceptedEvent() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("acceptor1", network);
+        Command value = Command.set("x", "10");
+
+        network.send("proposer1", "acceptor1", new AcceptRequest(new Ballot(1, "A"), 0, value));
+        network.deliverAll();
+
+        Event event = findFirst(network, "ACCEPTED");
+        assertEquals("acceptor1", event.toNode(), "the accepting node's id should be recorded");
+        assertEquals(value.toString(), event.value(), "the accepted value should be recorded");
+    }
+
+    public void testRejectingRecordsANackEvent() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("acceptor1", network);
+        network.send("proposer1", "acceptor1", new Prepare(new Ballot(2, "A"), 0));
+        network.deliverAll();
+
+        network.send("proposer1", "acceptor1", new Prepare(new Ballot(1, "B"), 0));
+        network.deliverAll();
+
+        Event event = findFirst(network, "NACK");
+        assertEquals("acceptor1", event.toNode(), "the rejecting node's id should be recorded");
+    }
+
+    private static Event findFirst(SimulatedNetwork network, String type) {
+        return network.eventLog().events().stream()
+                .filter(e -> e.type().equals(type))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no " + type + " event was recorded"));
+    }
 
     public void testNodeRegistersAndRespondsToPrepare() {
         SimulatedNetwork network = new SimulatedNetwork();

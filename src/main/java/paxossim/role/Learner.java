@@ -3,6 +3,7 @@ package paxossim.role;
 import paxossim.core.Ballot;
 import paxossim.core.Command;
 import paxossim.core.Log;
+import paxossim.events.EventLog;
 import paxossim.message.Accepted;
 import paxossim.message.Message;
 import paxossim.network.SimulatedNetwork;
@@ -27,6 +28,7 @@ public final class Learner {
     private final String id;
     private final int clusterSize;
     private final Log log;
+    private final EventLog eventLog;
 
     // slot -> ballot -> ids of acceptors that accepted that ballot for that slot
     private final Map<Integer, Map<Ballot, Set<String>>> acceptedBy = new HashMap<>();
@@ -35,6 +37,7 @@ public final class Learner {
         this.id = Objects.requireNonNull(id, "id");
         this.clusterSize = acceptorIds.size();
         this.log = Objects.requireNonNull(log, "log");
+        this.eventLog = network.eventLog();
         network.register(id, this::onMessage);
     }
 
@@ -56,6 +59,7 @@ public final class Learner {
 
         if (!log.isChosen(slot) && acceptorsForBallot.size() > clusterSize / 2) {
             log.recordChosen(slot, ballot, accepted.value());
+            eventLog.chosen(slot, String.valueOf(accepted.value()), "SLOT " + slot + " CHOSEN: " + accepted.value());
         }
     }
 }

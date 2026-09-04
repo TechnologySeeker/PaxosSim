@@ -3,6 +3,7 @@ package paxossim.role;
 import paxossim.core.Ballot;
 import paxossim.core.Command;
 import paxossim.core.Log;
+import paxossim.events.Event;
 import paxossim.message.Accepted;
 import paxossim.network.SimulatedNetwork;
 
@@ -15,6 +16,38 @@ import static paxossim.testing.Assertions.assertTrue;
 public class LearnerTest {
 
     private static final List<String> ACCEPTORS = List.of("A", "B", "C");
+
+    public void testMarkingASlotChosenRecordsAChosenEvent() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        Log log = new Log();
+        new Learner("L", network, ACCEPTORS, log);
+        Ballot ballot = new Ballot(1, "P");
+        Command value = Command.set("x", "10");
+
+        network.send("A", "L", new Accepted(ballot, 0, value));
+        network.send("B", "L", new Accepted(ballot, 0, value));
+        network.deliverAll();
+
+        Event event = network.eventLog().events().stream()
+                .filter(e -> e.type().equals("CHOSEN"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no CHOSEN event was recorded"));
+        assertEquals(Integer.valueOf(0), event.slot(), "the chosen slot should be recorded");
+        assertEquals(value.toString(), event.value(), "the chosen value should be recorded");
+        assertEquals("SLOT 0 CHOSEN: " + value, event.note(), "the note should describe what was chosen");
+    }
+
+    public void testNoChosenEventBeforeQuorum() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        Log log = new Log();
+        new Learner("L", network, ACCEPTORS, log);
+
+        network.send("A", "L", new Accepted(new Ballot(1, "P"), 0, Command.set("x", "10")));
+        network.deliverAll();
+
+        boolean anyChosen = network.eventLog().events().stream().anyMatch(e -> e.type().equals("CHOSEN"));
+        assertTrue(!anyChosen, "no CHOSEN event should be recorded before a quorum accepts");
+    }
 
     public void testMarksSlotChosenOnceMajorityAcceptsTheSameBallot() {
         SimulatedNetwork network = new SimulatedNetwork();

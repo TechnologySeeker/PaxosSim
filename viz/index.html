@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PaxosSim Visualizer</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-border: #2a2f3a;
+    --text: #e6e8ee;
+    --text-dim: #9aa3b2;
+    --accent: #5b8cff;
+    --green: #3ecf8e;
+    --red: #ef5b5b;
+    --gold: #e8c547;
+    --gray: #4a5568;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  header h1 { margin: 0 0 4px; font-size: 18px; }
+  header p { margin: 0; color: var(--text-dim); }
+  main {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 16px;
+    padding: 16px 20px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+  }
+  #loadRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #loadRow input[type=file] { color: var(--text-dim); }
+  select, button {
+    background: #20242e;
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0b0e14; font-weight: 600; }
+
+  #nodesArea { position: relative; min-height: 220px; }
+  #nodesRow { display: flex; justify-content: space-around; align-items: flex-start; gap: 12px; padding-top: 30px; }
+  #proposersRow { display: flex; justify-content: center; gap: 24px; margin-bottom: 8px; min-height: 24px; }
+  .proposer-tag {
+    font-size: 12px;
+    color: var(--text-dim);
+    border: 1px dashed var(--panel-border);
+    border-radius: 6px;
+    padding: 2px 8px;
+  }
+  .node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 150px;
+  }
+  .node-circle {
+    width: 74px;
+    height: 74px;
+    border-radius: 50%;
+    background: #20242e;
+    border: 3px solid var(--gray);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .node-circle.ring-promise { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(91,140,255,0.25); }
+  .node-circle.ring-accept { border-color: var(--green); box-shadow: 0 0 0 4px rgba(62,207,142,0.25); }
+  .node-circle.ring-nack { border-color: var(--red); box-shadow: 0 0 0 4px rgba(239,91,91,0.25); }
+  .node-circle.ring-state { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(232,197,71,0.25); }
+  .node-info { margin-top: 8px; font-size: 11px; color: var(--text-dim); text-align: center; line-height: 1.5; }
+  .node-info b { color: var(--text); }
+  #arrowSvg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  #banner {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #20242e;
+    border: 1px solid var(--panel-border);
+    min-height: 20px;
+    font-size: 13px;
+  }
+  #banner.note { border-color: var(--gold); color: var(--gold); }
+  #banner.chosen { border-color: var(--green); color: var(--green); font-weight: 700; }
+  #banner.nack { border-color: var(--red); color: var(--red); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--panel-border); }
+  th { color: var(--text-dim); font-weight: 500; }
+  .status-chip { padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .status-chip.CHOSEN { background: rgba(62,207,142,0.18); color: var(--green); }
+  .status-chip.ACCEPTED { background: rgba(232,197,71,0.18); color: var(--gold); }
+
+  #stateMachines { display: flex; flex-direction: column; gap: 10px; }
+  .sm-row { display: flex; justify-content: space-between; font-size: 12px; }
+  .sm-row .kv { color: var(--text-dim); }
+
+  #controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  #scrubber { flex: 1; min-width: 120px; }
+  #cursorLabel { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+
+  #eventList { max-height: 320px; overflow-y: auto; font-size: 12px; }
+  #eventList div { padding: 3px 4px; border-radius: 4px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #eventList div.current { background: rgba(91,140,255,0.18); color: var(--text); font-weight: 600; }
+  #eventList div.type-CHOSEN { color: var(--green); }
+  #eventList div.type-NACK { color: var(--red); }
+  #eventList div.type-NOTE { color: var(--gold); }
+
+  .empty-hint { color: var(--text-dim); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PaxosSim Visualizer</h1>
+  <p>Load an events.json produced by <code>ScenarioRunner</code> and step through a Paxos run message by message. No server required.</p>
+</header>
+
+<main>
+  <div style="display:flex; flex-direction:column; gap:16px;">
+
+    <div class="panel">
+      <h2>Load a run</h2>
+      <div id="loadRow">
+        <select id="sampleSelect">
+          <option value="">— pick a bundled sample —</option>
+          <option value="events-normal.json">normal</option>
+          <option value="events-competing_proposers.json">competing_proposers</option>
+          <option value="events-node_failure.json">node_failure</option>
+          <option value="events-partition.json">partition</option>
+        </select>
+        <span class="empty-hint">or</span>
+        <input type="file" id="fileInput" accept="application/json">
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Nodes</h2>
+      <div id="nodesArea">
+        <div id="proposersRow"></div>
+        <svg id="arrowSvg"></svg>
+        <div id="nodesRow"><span class="empty-hint">Load a run to begin.</span></div>
+      </div>
+      <div id="banner"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Controls</h2>
+      <div id="controls">
+        <button id="resetBtn" disabled>⏮ Reset</button>
+        <button id="stepBackBtn" disabled>◀ Step</button>
+        <button id="playBtn" disabled>▶ Play</button>
+        <button id="stepBtn" disabled>Step ▶</button>
+        <input type="range" id="scrubber" min="-1" max="-1" value="-1" disabled>
+        <span id="cursorLabel">–</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Replicated log</h2>
+      <table>
+        <thead><tr><th>Slot</th><th>Value</th><th>Status</th></tr></thead>
+        <tbody id="logTable"><tr><td colspan="3" class="empty-hint">No data yet.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>State machines</h2>
+      <div id="stateMachines"><span class="empty-hint">No data yet.</span></div>
+    </div>
+
+  </div>
+
+  <div class="panel" style="align-self:start;">
+    <h2>Event timeline</h2>
+    <div id="eventList"><span class="empty-hint">No data yet.</span></div>
+  </div>
+</main>
+
+<script>
+const EMBEDDED_SAMPLES = {"events-normal.json":{"nodes":["A","B","C"],"events":[{"seq":0,"type":"SEND","fromNode":"proposer","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":1,"type":"SEND","fromNode":"proposer","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":2,"type":"SEND","fromNode":"proposer","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":3,"type":"RECEIVE","fromNode":"proposer","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":4,"type":"PROMISE","toNode":"A","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":5,"type":"SEND","fromNode":"A","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":6,"type":"RECEIVE","fromNode":"proposer","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":7,"type":"PROMISE","toNode":"B","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":8,"type":"SEND","fromNode":"B","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":9,"type":"RECEIVE","fromNode":"proposer","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":10,"type":"PROMISE","toNode":"C","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":11,"type":"SEND","fromNode":"C","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":12,"type":"RECEIVE","fromNode":"A","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":13,"type":"RECEIVE","fromNode":"B","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":14,"type":"RECEIVE","fromNode":"C","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":15,"type":"SEND","fromNode":"proposer","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":16,"type":"SEND","fromNode":"proposer","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":17,"type":"SEND","fromNode":"proposer","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":18,"type":"RECEIVE","fromNode":"proposer","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":19,"type":"ACCEPTED","toNode":"A","ballot":"(1,A)","slot":0,"value":"SET x 10","note":"accepted SET x 10 under (1,A)"},{"seq":20,"type":"SEND","fromNode":"A","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":21,"type":"SEND","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":22,"type":"SEND","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":23,"type":"SEND","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":24,"type":"RECEIVE","fromNode":"proposer","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":25,"type":"ACCEPTED","toNode":"B","ballot":"(1,A)","slot":0,"value":"SET x 10","note":"accepted SET x 10 under (1,A)"},{"seq":26,"type":"SEND","fromNode":"B","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":27,"type":"SEND","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":28,"type":"SEND","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":29,"type":"SEND","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":30,"type":"RECEIVE","fromNode":"proposer","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":31,"type":"ACCEPTED","toNode":"C","ballot":"(1,A)","slot":0,"value":"SET x 10","note":"accepted SET x 10 under (1,A)"},{"seq":32,"type":"SEND","fromNode":"C","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":33,"type":"SEND","fromNode":"C","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":34,"type":"SEND","fromNode":"C","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":35,"type":"SEND","fromNode":"C","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":36,"type":"RECEIVE","fromNode":"A","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":37,"type":"RECEIVE","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":38,"type":"RECEIVE","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":39,"type":"RECEIVE","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":40,"type":"RECEIVE","fromNode":"B","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":41,"type":"RECEIVE","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":42,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},{"seq":43,"type":"RECEIVE","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":44,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},{"seq":45,"type":"RECEIVE","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":46,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},{"seq":47,"type":"RECEIVE","fromNode":"C","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":48,"type":"RECEIVE","fromNode":"C","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":49,"type":"RECEIVE","fromNode":"C","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":50,"type":"RECEIVE","fromNode":"C","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":51,"type":"NOTE","note":"Quorum reached for slot 0 \u2014 value chosen"},{"seq":52,"type":"SEND","fromNode":"proposer","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":1},{"seq":53,"type":"SEND","fromNode":"proposer","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":1},{"seq":54,"type":"SEND","fromNode":"proposer","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":1},{"seq":55,"type":"RECEIVE","fromNode":"proposer","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":1},{"seq":56,"type":"PROMISE","toNode":"A","ballot":"(1,A)","slot":1,"note":"promised (1,A)"},{"seq":57,"type":"SEND","fromNode":"A","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":1},{"seq":58,"type":"RECEIVE","fromNode":"proposer","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":1},{"seq":59,"type":"PROMISE","toNode":"B","ballot":"(1,A)","slot":1,"note":"promised (1,A)"},{"seq":60,"type":"SEND","fromNode":"B","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":1},{"seq":61,"type":"RECEIVE","fromNode":"proposer","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":1},{"seq":62,"type":"PROMISE","toNode":"C","ballot":"(1,A)","slot":1,"note":"promised (1,A)"},{"seq":63,"type":"SEND","fromNode":"C","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":1},{"seq":64,"type":"RECEIVE","fromNode":"A","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":1},{"seq":65,"type":"RECEIVE","fromNode":"B","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":1},{"seq":66,"type":"RECEIVE","fromNode":"C","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":1},{"seq":67,"type":"SEND","fromNode":"proposer","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":1},{"seq":68,"type":"SEND","fromNode":"proposer","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":1},{"seq":69,"type":"SEND","fromNode":"proposer","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":1},{"seq":70,"type":"RECEIVE","fromNode":"proposer","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":1},{"seq":71,"type":"ACCEPTED","toNode":"A","ballot":"(1,A)","slot":1,"value":"SET y 20","note":"accepted SET y 20 under (1,A)"},{"seq":72,"type":"SEND","fromNode":"A","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":73,"type":"SEND","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":74,"type":"SEND","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":75,"type":"SEND","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":76,"type":"RECEIVE","fromNode":"proposer","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":1},{"seq":77,"type":"ACCEPTED","toNode":"B","ballot":"(1,A)","slot":1,"value":"SET y 20","note":"accepted SET y 20 under (1,A)"},{"seq":78,"type":"SEND","fromNode":"B","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":79,"type":"SEND","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":80,"type":"SEND","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":81,"type":"SEND","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":82,"type":"RECEIVE","fromNode":"proposer","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":1},{"seq":83,"type":"ACCEPTED","toNode":"C","ballot":"(1,A)","slot":1,"value":"SET y 20","note":"accepted SET y 20 under (1,A)"},{"seq":84,"type":"SEND","fromNode":"C","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":85,"type":"SEND","fromNode":"C","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":86,"type":"SEND","fromNode":"C","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":87,"type":"SEND","fromNode":"C","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":88,"type":"RECEIVE","fromNode":"A","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":89,"type":"RECEIVE","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":90,"type":"RECEIVE","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":91,"type":"RECEIVE","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":92,"type":"RECEIVE","fromNode":"B","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":93,"type":"RECEIVE","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":94,"type":"CHOSEN","slot":1,"value":"SET y 20","note":"SLOT 1 CHOSEN: SET y 20"},{"seq":95,"type":"RECEIVE","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":96,"type":"CHOSEN","slot":1,"value":"SET y 20","note":"SLOT 1 CHOSEN: SET y 20"},{"seq":97,"type":"RECEIVE","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":98,"type":"CHOSEN","slot":1,"value":"SET y 20","note":"SLOT 1 CHOSEN: SET y 20"},{"seq":99,"type":"RECEIVE","fromNode":"C","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":100,"type":"RECEIVE","fromNode":"C","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":101,"type":"RECEIVE","fromNode":"C","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":102,"type":"RECEIVE","fromNode":"C","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":1},{"seq":103,"type":"NOTE","note":"Quorum reached for slot 1 \u2014 value chosen"},{"seq":104,"type":"STATE_CHANGE","toNode":"A","slot":0,"value":"SET x 10","note":"applied SET x 10 at slot 0"},{"seq":105,"type":"STATE_CHANGE","toNode":"A","slot":1,"value":"SET y 20","note":"applied SET y 20 at slot 1"},{"seq":106,"type":"STATE_CHANGE","toNode":"B","slot":0,"value":"SET x 10","note":"applied SET x 10 at slot 0"},{"seq":107,"type":"STATE_CHANGE","toNode":"B","slot":1,"value":"SET y 20","note":"applied SET y 20 at slot 1"},{"seq":108,"type":"STATE_CHANGE","toNode":"C","slot":0,"value":"SET x 10","note":"applied SET x 10 at slot 0"},{"seq":109,"type":"STATE_CHANGE","toNode":"C","slot":1,"value":"SET y 20","note":"applied SET y 20 at slot 1"}]},"events-competing_proposers.json":{"nodes":["A","B","C"],"events":[{"seq":0,"type":"SEND","fromNode":"proposer-A","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":1,"type":"SEND","fromNode":"proposer-A","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":2,"type":"SEND","fromNode":"proposer-A","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":3,"type":"SEND","fromNode":"proposer-B","toNode":"A","message":"Prepare","ballot":"(2,B)","slot":0},{"seq":4,"type":"SEND","fromNode":"proposer-B","toNode":"B","message":"Prepare","ballot":"(2,B)","slot":0},{"seq":5,"type":"SEND","fromNode":"proposer-B","toNode":"C","message":"Prepare","ballot":"(2,B)","slot":0},{"seq":6,"type":"RECEIVE","fromNode":"proposer-A","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":7,"type":"PROMISE","toNode":"A","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":8,"type":"SEND","fromNode":"A","toNode":"proposer-A","message":"Promise","ballot":"(1,A)","slot":0},{"seq":9,"type":"RECEIVE","fromNode":"proposer-A","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":10,"type":"PROMISE","toNode":"B","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":11,"type":"SEND","fromNode":"B","toNode":"proposer-A","message":"Promise","ballot":"(1,A)","slot":0},{"seq":12,"type":"RECEIVE","fromNode":"proposer-A","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":13,"type":"PROMISE","toNode":"C","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":14,"type":"SEND","fromNode":"C","toNode":"proposer-A","message":"Promise","ballot":"(1,A)","slot":0},{"seq":15,"type":"RECEIVE","fromNode":"proposer-B","toNode":"A","message":"Prepare","ballot":"(2,B)","slot":0},{"seq":16,"type":"PROMISE","toNode":"A","ballot":"(2,B)","slot":0,"note":"promised (2,B)"},{"seq":17,"type":"SEND","fromNode":"A","toNode":"proposer-B","message":"Promise","ballot":"(2,B)","slot":0},{"seq":18,"type":"RECEIVE","fromNode":"proposer-B","toNode":"B","message":"Prepare","ballot":"(2,B)","slot":0},{"seq":19,"type":"PROMISE","toNode":"B","ballot":"(2,B)","slot":0,"note":"promised (2,B)"},{"seq":20,"type":"SEND","fromNode":"B","toNode":"proposer-B","message":"Promise","ballot":"(2,B)","slot":0},{"seq":21,"type":"RECEIVE","fromNode":"proposer-B","toNode":"C","message":"Prepare","ballot":"(2,B)","slot":0},{"seq":22,"type":"PROMISE","toNode":"C","ballot":"(2,B)","slot":0,"note":"promised (2,B)"},{"seq":23,"type":"SEND","fromNode":"C","toNode":"proposer-B","message":"Promise","ballot":"(2,B)","slot":0},{"seq":24,"type":"RECEIVE","fromNode":"A","toNode":"proposer-A","message":"Promise","ballot":"(1,A)","slot":0},{"seq":25,"type":"RECEIVE","fromNode":"B","toNode":"proposer-A","message":"Promise","ballot":"(1,A)","slot":0},{"seq":26,"type":"RECEIVE","fromNode":"C","toNode":"proposer-A","message":"Promise","ballot":"(1,A)","slot":0},{"seq":27,"type":"RECEIVE","fromNode":"A","toNode":"proposer-B","message":"Promise","ballot":"(2,B)","slot":0},{"seq":28,"type":"RECEIVE","fromNode":"B","toNode":"proposer-B","message":"Promise","ballot":"(2,B)","slot":0},{"seq":29,"type":"RECEIVE","fromNode":"C","toNode":"proposer-B","message":"Promise","ballot":"(2,B)","slot":0},{"seq":30,"type":"NOTE","note":"Both A and B won phase 1 \u2014 every acceptor has now promised B's higher ballot (2,B)"},{"seq":31,"type":"SEND","fromNode":"proposer-A","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":32,"type":"SEND","fromNode":"proposer-A","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":33,"type":"SEND","fromNode":"proposer-A","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":34,"type":"SEND","fromNode":"proposer-B","toNode":"A","message":"AcceptRequest","ballot":"(2,B)","slot":0},{"seq":35,"type":"SEND","fromNode":"proposer-B","toNode":"B","message":"AcceptRequest","ballot":"(2,B)","slot":0},{"seq":36,"type":"SEND","fromNode":"proposer-B","toNode":"C","message":"AcceptRequest","ballot":"(2,B)","slot":0},{"seq":37,"type":"RECEIVE","fromNode":"proposer-A","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":38,"type":"NACK","toNode":"A","ballot":"(1,A)","slot":0,"note":"rejected (1,A) (already promised (2,B))"},{"seq":39,"type":"SEND","fromNode":"A","toNode":"proposer-A","message":"Nack","ballot":"(1,A)","slot":0},{"seq":40,"type":"RECEIVE","fromNode":"proposer-A","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":41,"type":"NACK","toNode":"B","ballot":"(1,A)","slot":0,"note":"rejected (1,A) (already promised (2,B))"},{"seq":42,"type":"SEND","fromNode":"B","toNode":"proposer-A","message":"Nack","ballot":"(1,A)","slot":0},{"seq":43,"type":"RECEIVE","fromNode":"proposer-A","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":44,"type":"NACK","toNode":"C","ballot":"(1,A)","slot":0,"note":"rejected (1,A) (already promised (2,B))"},{"seq":45,"type":"SEND","fromNode":"C","toNode":"proposer-A","message":"Nack","ballot":"(1,A)","slot":0},{"seq":46,"type":"RECEIVE","fromNode":"proposer-B","toNode":"A","message":"AcceptRequest","ballot":"(2,B)","slot":0},{"seq":47,"type":"ACCEPTED","toNode":"A","ballot":"(2,B)","slot":0,"value":"SET x FROM-B","note":"accepted SET x FROM-B under (2,B)"},{"seq":48,"type":"SEND","fromNode":"A","toNode":"proposer-B","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":49,"type":"SEND","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":50,"type":"SEND","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":51,"type":"SEND","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":52,"type":"RECEIVE","fromNode":"proposer-B","toNode":"B","message":"AcceptRequest","ballot":"(2,B)","slot":0},{"seq":53,"type":"ACCEPTED","toNode":"B","ballot":"(2,B)","slot":0,"value":"SET x FROM-B","note":"accepted SET x FROM-B under (2,B)"},{"seq":54,"type":"SEND","fromNode":"B","toNode":"proposer-B","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":55,"type":"SEND","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":56,"type":"SEND","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":57,"type":"SEND","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":58,"type":"RECEIVE","fromNode":"proposer-B","toNode":"C","message":"AcceptRequest","ballot":"(2,B)","slot":0},{"seq":59,"type":"ACCEPTED","toNode":"C","ballot":"(2,B)","slot":0,"value":"SET x FROM-B","note":"accepted SET x FROM-B under (2,B)"},{"seq":60,"type":"SEND","fromNode":"C","toNode":"proposer-B","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":61,"type":"SEND","fromNode":"C","toNode":"A-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":62,"type":"SEND","fromNode":"C","toNode":"B-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":63,"type":"SEND","fromNode":"C","toNode":"C-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":64,"type":"RECEIVE","fromNode":"A","toNode":"proposer-A","message":"Nack","ballot":"(1,A)","slot":0},{"seq":65,"type":"RECEIVE","fromNode":"B","toNode":"proposer-A","message":"Nack","ballot":"(1,A)","slot":0},{"seq":66,"type":"RECEIVE","fromNode":"C","toNode":"proposer-A","message":"Nack","ballot":"(1,A)","slot":0},{"seq":67,"type":"RECEIVE","fromNode":"A","toNode":"proposer-B","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":68,"type":"RECEIVE","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":69,"type":"RECEIVE","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":70,"type":"RECEIVE","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":71,"type":"RECEIVE","fromNode":"B","toNode":"proposer-B","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":72,"type":"RECEIVE","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":73,"type":"CHOSEN","slot":0,"value":"SET x FROM-B","note":"SLOT 0 CHOSEN: SET x FROM-B"},{"seq":74,"type":"RECEIVE","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":75,"type":"CHOSEN","slot":0,"value":"SET x FROM-B","note":"SLOT 0 CHOSEN: SET x FROM-B"},{"seq":76,"type":"RECEIVE","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":77,"type":"CHOSEN","slot":0,"value":"SET x FROM-B","note":"SLOT 0 CHOSEN: SET x FROM-B"},{"seq":78,"type":"RECEIVE","fromNode":"C","toNode":"proposer-B","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":79,"type":"RECEIVE","fromNode":"C","toNode":"A-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":80,"type":"RECEIVE","fromNode":"C","toNode":"B-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":81,"type":"RECEIVE","fromNode":"C","toNode":"C-learner","message":"Accepted","ballot":"(2,B)","slot":0},{"seq":82,"type":"NOTE","note":"A's lower-ballot accept was rejected everywhere \u2014 A gets preempted; B's value is chosen"}]},"events-node_failure.json":{"nodes":["A","B","C"],"events":[{"seq":0,"type":"NOTE","note":"C is down for this entire run"},{"seq":1,"type":"SEND","fromNode":"proposer","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":2,"type":"SEND","fromNode":"proposer","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":3,"type":"SEND","fromNode":"proposer","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":4,"type":"RECEIVE","fromNode":"proposer","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":5,"type":"PROMISE","toNode":"A","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":6,"type":"SEND","fromNode":"A","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":7,"type":"RECEIVE","fromNode":"proposer","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":8,"type":"PROMISE","toNode":"B","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":9,"type":"SEND","fromNode":"B","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":10,"type":"DROPPED","fromNode":"proposer","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":11,"type":"RECEIVE","fromNode":"A","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":12,"type":"RECEIVE","fromNode":"B","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":13,"type":"SEND","fromNode":"proposer","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":14,"type":"SEND","fromNode":"proposer","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":15,"type":"SEND","fromNode":"proposer","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":16,"type":"RECEIVE","fromNode":"proposer","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":17,"type":"ACCEPTED","toNode":"A","ballot":"(1,A)","slot":0,"value":"SET x 10","note":"accepted SET x 10 under (1,A)"},{"seq":18,"type":"SEND","fromNode":"A","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":19,"type":"SEND","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":20,"type":"SEND","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":21,"type":"SEND","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":22,"type":"RECEIVE","fromNode":"proposer","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":23,"type":"ACCEPTED","toNode":"B","ballot":"(1,A)","slot":0,"value":"SET x 10","note":"accepted SET x 10 under (1,A)"},{"seq":24,"type":"SEND","fromNode":"B","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":25,"type":"SEND","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":26,"type":"SEND","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":27,"type":"SEND","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":28,"type":"DROPPED","fromNode":"proposer","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":29,"type":"RECEIVE","fromNode":"A","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":30,"type":"RECEIVE","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":31,"type":"RECEIVE","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":32,"type":"DROPPED","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":33,"type":"RECEIVE","fromNode":"B","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":34,"type":"RECEIVE","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":35,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},{"seq":36,"type":"RECEIVE","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":37,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},{"seq":38,"type":"DROPPED","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":39,"type":"NOTE","note":"A + B alone still reach quorum (2 of 3)"}]},"events-partition.json":{"nodes":["A","B","C"],"events":[{"seq":0,"type":"NOTE","note":"C is partitioned away from the rest of the cluster"},{"seq":1,"type":"SEND","fromNode":"proposer","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":2,"type":"SEND","fromNode":"proposer","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":3,"type":"SEND","fromNode":"proposer","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":4,"type":"RECEIVE","fromNode":"proposer","toNode":"A","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":5,"type":"PROMISE","toNode":"A","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":6,"type":"SEND","fromNode":"A","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":7,"type":"RECEIVE","fromNode":"proposer","toNode":"B","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":8,"type":"PROMISE","toNode":"B","ballot":"(1,A)","slot":0,"note":"promised (1,A)"},{"seq":9,"type":"SEND","fromNode":"B","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":10,"type":"DROPPED","fromNode":"proposer","toNode":"C","message":"Prepare","ballot":"(1,A)","slot":0},{"seq":11,"type":"RECEIVE","fromNode":"A","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":12,"type":"RECEIVE","fromNode":"B","toNode":"proposer","message":"Promise","ballot":"(1,A)","slot":0},{"seq":13,"type":"SEND","fromNode":"proposer","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":14,"type":"SEND","fromNode":"proposer","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":15,"type":"SEND","fromNode":"proposer","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":16,"type":"RECEIVE","fromNode":"proposer","toNode":"A","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":17,"type":"ACCEPTED","toNode":"A","ballot":"(1,A)","slot":0,"value":"SET x 10","note":"accepted SET x 10 under (1,A)"},{"seq":18,"type":"SEND","fromNode":"A","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":19,"type":"SEND","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":20,"type":"SEND","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":21,"type":"SEND","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":22,"type":"RECEIVE","fromNode":"proposer","toNode":"B","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":23,"type":"ACCEPTED","toNode":"B","ballot":"(1,A)","slot":0,"value":"SET x 10","note":"accepted SET x 10 under (1,A)"},{"seq":24,"type":"SEND","fromNode":"B","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":25,"type":"SEND","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":26,"type":"SEND","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":27,"type":"SEND","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":28,"type":"DROPPED","fromNode":"proposer","toNode":"C","message":"AcceptRequest","ballot":"(1,A)","slot":0},{"seq":29,"type":"RECEIVE","fromNode":"A","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":30,"type":"RECEIVE","fromNode":"A","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":31,"type":"RECEIVE","fromNode":"A","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":32,"type":"RECEIVE","fromNode":"A","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":33,"type":"RECEIVE","fromNode":"B","toNode":"proposer","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":34,"type":"RECEIVE","fromNode":"B","toNode":"A-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":35,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},{"seq":36,"type":"RECEIVE","fromNode":"B","toNode":"B-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":37,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},{"seq":38,"type":"RECEIVE","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},{"seq":39,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},{"seq":40,"type":"NOTE","note":"A + B alone (the majority side) still reach quorum despite the partition"},{"seq":41,"type":"NOTE","note":"Partition healed \u2014 C rejoins the cluster"}]}};
+</script>
+<script>
+(function () {
+  "use strict";
+
+  let data = null;       // {nodes: [...], events: [...]}
+  let cursor = -1;       // index of the last applied event, -1 = nothing applied
+  let playTimer = null;
+
+  const nodesRow = document.getElementById("nodesRow");
+  const proposersRow = document.getElementById("proposersRow");
+  const arrowSvg = document.getElementById("arrowSvg");
+  const banner = document.getElementById("banner");
+  const logTableBody = document.getElementById("logTable");
+  const stateMachinesEl = document.getElementById("stateMachines");
+  const eventListEl = document.getElementById("eventList");
+  const scrubber = document.getElementById("scrubber");
+  const cursorLabel = document.getElementById("cursorLabel");
+  const resetBtn = document.getElementById("resetBtn");
+  const stepBackBtn = document.getElementById("stepBackBtn");
+  const stepBtn = document.getElementById("stepBtn");
+  const playBtn = document.getElementById("playBtn");
+
+  document.getElementById("sampleSelect").addEventListener("change", function (e) {
+    const file = e.target.value;
+    if (!file) return;
+    // Embedded at build time (see the EMBEDDED_SAMPLES script block above) so
+    // this works from a plain file:// double-click, with no server and no
+    // fetch() (which browsers block against file:// URLs anyway).
+    const sample = EMBEDDED_SAMPLES[file];
+    if (!sample) { alert("Unknown sample: " + file); return; }
+    loadData(sample);
+  });
+
+  document.getElementById("fileInput").addEventListener("change", function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      try {
+        loadData(JSON.parse(reader.result));
+      } catch (err) {
+        alert("Could not parse that file as JSON: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  function loadData(parsed) {
+    stopPlaying();
+    data = parsed;
+    cursor = -1;
+    scrubber.min = -1;
+    scrubber.max = data.events.length - 1;
+    scrubber.value = -1;
+    scrubber.disabled = false;
+    resetBtn.disabled = false;
+    stepBtn.disabled = false;
+    stepBackBtn.disabled = false;
+    playBtn.disabled = false;
+    renderEventList();
+    renderAtCursor(-1);
+  }
+
+  // ---- replay engine: full replay from scratch up to `target` every time,
+  // which keeps forward AND backward stepping trivially correct. ----
+
+  function freshState() {
+    const nodes = {};
+    for (const id of data.nodes) {
+      nodes[id] = { promisedBallot: null, acceptedBallot: null, acceptedValue: null, store: {}, ring: null };
+    }
+    return { nodes, log: {} };
+  }
+
+  function applyCommandString(store, commandStr) {
+    if (commandStr == null) return;
+    if (commandStr.startsWith("SET ")) {
+      const rest = commandStr.slice(4);
+      const spaceIdx = rest.indexOf(" ");
+      store[rest.slice(0, spaceIdx)] = rest.slice(spaceIdx + 1);
+    } else if (commandStr.startsWith("DELETE ")) {
+      delete store[commandStr.slice(7)];
+    }
+  }
+
+  function applyEvent(state, ev) {
+    switch (ev.type) {
+      case "PROMISE":
+        if (state.nodes[ev.toNode]) { state.nodes[ev.toNode].promisedBallot = ev.ballot; state.nodes[ev.toNode].ring = "ring-promise"; }
+        break;
+      case "ACCEPTED":
+        if (state.nodes[ev.toNode]) {
+          state.nodes[ev.toNode].promisedBallot = ev.ballot;
+          state.nodes[ev.toNode].acceptedBallot = ev.ballot;
+          state.nodes[ev.toNode].acceptedValue = ev.value;
+          state.nodes[ev.toNode].ring = "ring-accept";
+        }
+        if (!state.log[ev.slot] || state.log[ev.slot].status !== "CHOSEN") {
+          state.log[ev.slot] = { value: ev.value, status: "ACCEPTED" };
+        }
+        break;
+      case "NACK":
+        if (state.nodes[ev.toNode]) { state.nodes[ev.toNode].ring = "ring-nack"; }
+        break;
+      case "CHOSEN":
+        state.log[ev.slot] = { value: ev.value, status: "CHOSEN" };
+        break;
+      case "STATE_CHANGE":
+        if (state.nodes[ev.toNode]) {
+          applyCommandString(state.nodes[ev.toNode].store, ev.value);
+          state.nodes[ev.toNode].ring = "ring-state";
+        }
+        break;
+      default:
+        break; // SEND / RECEIVE / DROPPED / NOTE carry no persistent node/log state
+    }
+  }
+
+  function renderAtCursor(target) {
+    cursor = Math.max(-1, Math.min(target, data.events.length - 1));
+    const state = freshState();
+    for (let i = 0; i <= cursor; i++) applyEvent(state, data.events[i]);
+
+    renderNodes(state);
+    renderProposers();
+    renderBanner();
+    renderArrow();
+    renderLog(state);
+    renderStateMachines(state);
+    highlightEventList();
+
+    scrubber.value = cursor;
+    cursorLabel.textContent = (cursor + 1) + " / " + data.events.length;
+    stepBtn.disabled = cursor >= data.events.length - 1;
+    stepBackBtn.disabled = cursor < 0;
+  }
+
+  function renderNodes(state) {
+    nodesRow.innerHTML = "";
+    for (const id of data.nodes) {
+      const n = state.nodes[id];
+      const wrap = document.createElement("div");
+      wrap.className = "node";
+      const circle = document.createElement("div");
+      circle.id = "node-" + cssSafe(id); // arrows anchor on the circle itself, not the taller wrapper
+      circle.className = "node-circle" + (n.ring ? " " + n.ring : "");
+      circle.textContent = id;
+      const info = document.createElement("div");
+      info.className = "node-info";
+      info.innerHTML =
+        "promised: <b>" + (n.promisedBallot || "—") + "</b><br>" +
+        "accepted: <b>" + (n.acceptedValue ? n.acceptedValue + " @ " + n.acceptedBallot : "—") + "</b><br>" +
+        "state: <b>" + (Object.keys(n.store).length ? JSON.stringify(n.store) : "{}") + "</b>";
+      wrap.appendChild(circle);
+      wrap.appendChild(info);
+      nodesRow.appendChild(wrap);
+    }
+  }
+
+  function discoverProposerIds() {
+    const known = new Set(data.nodes);
+    const ids = new Set();
+    for (const ev of data.events) {
+      for (const id of [ev.fromNode, ev.toNode]) {
+        if (id && !known.has(id) && !id.endsWith("-learner")) ids.add(id);
+      }
+    }
+    return Array.from(ids).sort();
+  }
+
+  function renderProposers() {
+    const ids = discoverProposerIds();
+    proposersRow.innerHTML = "";
+    for (const id of ids) {
+      const tag = document.createElement("span");
+      tag.className = "proposer-tag";
+      tag.id = "node-" + cssSafe(id);
+      tag.textContent = id;
+      proposersRow.appendChild(tag);
+    }
+  }
+
+  function renderBanner() {
+    banner.className = "";
+    if (cursor < 0) { banner.textContent = "Nothing applied yet — press Step or Play."; return; }
+    const ev = data.events[cursor];
+    let text = "#" + ev.seq + " " + ev.type;
+    if (ev.fromNode || ev.toNode) text += "  " + (ev.fromNode || "?") + " → " + (ev.toNode || "?");
+    if (ev.message) text += "  [" + ev.message + "]";
+    if (ev.ballot) text += "  ballot " + ev.ballot;
+    if (ev.slot != null) text += "  slot " + ev.slot;
+    if (ev.value) text += "  value=" + ev.value;
+    if (ev.note) text += "  — " + ev.note;
+    banner.textContent = text;
+    if (ev.type === "CHOSEN") banner.className = "chosen";
+    else if (ev.type === "NACK") banner.className = "nack";
+    else if (ev.type === "NOTE") banner.className = "note";
+  }
+
+  function renderArrow() {
+    arrowSvg.innerHTML = "";
+    if (cursor < 0) return;
+    const ev = data.events[cursor];
+    if (ev.type !== "SEND" && ev.type !== "RECEIVE" && ev.type !== "DROPPED") return;
+    const fromEl = document.getElementById("node-" + cssSafe(ev.fromNode));
+    const toEl = document.getElementById("node-" + cssSafe(ev.toNode));
+    if (!fromEl || !toEl) return;
+
+    const container = document.getElementById("nodesArea").getBoundingClientRect();
+    const a = fromEl.getBoundingClientRect();
+    const b = toEl.getBoundingClientRect();
+    const x1 = a.left + a.width / 2 - container.left;
+    const y1 = a.top + a.height / 2 - container.top;
+    const x2 = b.left + b.width / 2 - container.left;
+    const y2 = b.top + b.height / 2 - container.top;
+
+    const color = ev.type === "DROPPED" ? "#ef5b5b" : (ev.type === "RECEIVE" ? "#3ecf8e" : "#4a5568");
+    const dash = ev.type === "SEND" ? "6,5" : "none";
+
+    const ns = "http://www.w3.org/2000/svg";
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+    line.setAttribute("stroke", color);
+    line.setAttribute("stroke-width", "2.5");
+    if (dash !== "none") line.setAttribute("stroke-dasharray", dash);
+    arrowSvg.appendChild(line);
+
+    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+    const marker = document.createElementNS(ns, "circle");
+    marker.setAttribute("cx", midX); marker.setAttribute("cy", midY);
+    marker.setAttribute("r", ev.type === "DROPPED" ? 7 : 5);
+    marker.setAttribute("fill", color);
+    arrowSvg.appendChild(marker);
+    if (ev.type === "DROPPED") {
+      const label = document.createElementNS(ns, "text");
+      label.setAttribute("x", midX); label.setAttribute("y", midY - 10);
+      label.setAttribute("fill", color);
+      label.setAttribute("font-size", "12");
+      label.setAttribute("text-anchor", "middle");
+      label.textContent = "✕ lost";
+      arrowSvg.appendChild(label);
+    }
+  }
+
+  function renderLog(state) {
+    const slots = Object.keys(state.log).map(Number).sort((a, b) => a - b);
+    if (slots.length === 0) {
+      logTableBody.innerHTML = '<tr><td colspan="3" class="empty-hint">Nothing chosen or accepted yet.</td></tr>';
+      return;
+    }
+    logTableBody.innerHTML = slots.map(slot => {
+      const row = state.log[slot];
+      return "<tr><td>" + slot + "</td><td>" + escapeHtml(row.value || "") + "</td>" +
+        '<td><span class="status-chip ' + row.status + '">' + row.status + "</span></td></tr>";
+    }).join("");
+  }
+
+  function renderStateMachines(state) {
+    stateMachinesEl.innerHTML = data.nodes.map(id => {
+      const store = state.nodes[id].store;
+      const kv = Object.keys(store).length
+        ? Object.entries(store).map(([k, v]) => k + ":" + v).join(", ")
+        : "{}";
+      return '<div class="sm-row"><b>' + id + '</b><span class="kv">{ ' + escapeHtml(kv) + " }</span></div>";
+    }).join("");
+  }
+
+  function renderEventList() {
+    eventListEl.innerHTML = data.events.map((ev, i) => {
+      let label = "#" + ev.seq + " " + ev.type;
+      if (ev.fromNode || ev.toNode) label += " " + (ev.fromNode || "?") + "→" + (ev.toNode || "?");
+      if (ev.note) label += " (" + ev.note + ")";
+      return '<div id="ev-' + i + '" class="type-' + ev.type + '">' + escapeHtml(label) + "</div>";
+    }).join("");
+  }
+
+  function highlightEventList() {
+    const prev = eventListEl.querySelector(".current");
+    if (prev) prev.classList.remove("current");
+    if (cursor >= 0) {
+      const el = document.getElementById("ev-" + cursor);
+      if (el) { el.classList.add("current"); el.scrollIntoView({ block: "nearest" }); }
+    }
+  }
+
+  function cssSafe(id) { return String(id).replace(/[^a-zA-Z0-9_-]/g, "_"); }
+  function escapeHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  function stopPlaying() {
+    if (playTimer) { clearInterval(playTimer); playTimer = null; playBtn.textContent = "▶ Play"; }
+  }
+
+  resetBtn.addEventListener("click", () => { stopPlaying(); renderAtCursor(-1); });
+  stepBtn.addEventListener("click", () => { stopPlaying(); renderAtCursor(cursor + 1); });
+  stepBackBtn.addEventListener("click", () => { stopPlaying(); renderAtCursor(cursor - 1); });
+  scrubber.addEventListener("input", (e) => { stopPlaying(); renderAtCursor(Number(e.target.value)); });
+  playBtn.addEventListener("click", () => {
+    if (playTimer) { stopPlaying(); return; }
+    playBtn.textContent = "⏸ Pause";
+    playTimer = setInterval(() => {
+      if (cursor >= data.events.length - 1) { stopPlaying(); return; }
+      renderAtCursor(cursor + 1);
+    }, 700);
+  });
+})();
+</script>
+
+</body>
+</html>

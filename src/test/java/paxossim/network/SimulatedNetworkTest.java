@@ -2,6 +2,7 @@ package paxossim.network;
 
 import paxossim.core.Ballot;
 import paxossim.core.Command;
+import paxossim.events.Event;
 import paxossim.message.AcceptRequest;
 import paxossim.message.Message;
 import paxossim.message.Prepare;
@@ -17,6 +18,72 @@ import static paxossim.testing.Assertions.assertEquals;
 import static paxossim.testing.Assertions.assertTrue;
 
 public class SimulatedNetworkTest {
+
+    public void testSendRecordsASendEvent() {
+        SimulatedNetwork network = new SimulatedNetwork();
+
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 0));
+
+        Event event = network.eventLog().events().get(0);
+        assertEquals("SEND", event.type(), "sending should record a SEND event");
+        assertEquals("A", event.fromNode(), "fromNode should be recorded");
+        assertEquals("B", event.toNode(), "toNode should be recorded");
+        assertEquals("Prepare", event.message(), "message type should be recorded");
+    }
+
+    public void testDeliverNextToARegisteredHandlerRecordsAReceiveEvent() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        network.register("B", (from, message) -> {});
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 0));
+
+        network.deliverNext();
+
+        Event event = network.eventLog().events().get(1);
+        assertEquals("RECEIVE", event.type(), "delivering to a registered handler should record RECEIVE");
+    }
+
+    public void testDeliverNextToAnUnregisteredRecipientRecordsADroppedEvent() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        network.send("A", "ghost", new Prepare(new Ballot(1, "A"), 0));
+
+        network.deliverNext();
+
+        Event event = network.eventLog().events().get(1);
+        assertEquals("DROPPED", event.type(), "delivering to an unregistered recipient should record DROPPED");
+    }
+
+    public void testPartitionBlockedDeliveryRecordsADroppedEvent() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        network.register("B", (from, message) -> {});
+        network.partition(Set.of("B"));
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 0));
+
+        network.deliverNext();
+
+        Event event = network.eventLog().events().get(1);
+        assertEquals("DROPPED", event.type(), "delivery blocked by a partition should record DROPPED");
+    }
+
+    public void testDropNextRecordsADroppedEvent() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 0));
+
+        network.dropNext();
+
+        Event event = network.eventLog().events().get(1);
+        assertEquals("DROPPED", event.type(), "dropNext should record a DROPPED event");
+    }
+
+    public void testDropWhereRecordsADroppedEventForEachMatch() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 0));
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 1));
+
+        network.dropWhere(envelope -> true);
+
+        long droppedCount = network.eventLog().events().stream().filter(e -> e.type().equals("DROPPED")).count();
+        assertEquals(2L, droppedCount, "dropWhere should record one DROPPED event per matched envelope");
+    }
 
     public void testDeliverNextReturnsNullWhenQueueIsEmpty() {
         SimulatedNetwork network = new SimulatedNetwork();

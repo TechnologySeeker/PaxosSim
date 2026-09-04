@@ -1,5 +1,7 @@
 package paxossim.core;
 
+import paxossim.events.EventLog;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -14,8 +16,20 @@ import java.util.Map;
  */
 public final class StateMachine {
 
+    private final String nodeLabel;
+    private final EventLog eventLog;
     private final Map<String, String> store = new HashMap<>();
     private int nextSlotToApply = 0;
+
+    public StateMachine() {
+        this(null, null);
+    }
+
+    /** Attributes every STATE_CHANGE event this state machine emits to {@code nodeLabel}, for visualization/replay. */
+    public StateMachine(String nodeLabel, EventLog eventLog) {
+        this.nodeLabel = nodeLabel;
+        this.eventLog = eventLog;
+    }
 
     /**
      * Applies every contiguous chosen entry starting at the next
@@ -26,6 +40,10 @@ public final class StateMachine {
         while (log.isChosen(nextSlotToApply)) {
             Command command = log.chosenValue(nextSlotToApply).orElseThrow();
             apply(command);
+            if (eventLog != null) {
+                eventLog.stateChange(nodeLabel, nextSlotToApply, command.toString(),
+                        "applied " + command + " at slot " + nextSlotToApply);
+            }
             nextSlotToApply++;
         }
     }

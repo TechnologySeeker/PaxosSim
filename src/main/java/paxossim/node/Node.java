@@ -3,7 +3,9 @@ package paxossim.node;
 import paxossim.message.AcceptRequest;
 import paxossim.message.Accepted;
 import paxossim.message.Message;
+import paxossim.message.Nack;
 import paxossim.message.Prepare;
+import paxossim.message.Promise;
 import paxossim.network.SimulatedNetwork;
 import paxossim.role.Acceptor;
 
@@ -46,11 +48,24 @@ public final class Node {
 
     private void onMessage(String from, Message message) {
         Message reply = handle(message);
+        recordReplyEvent(reply);
         network.send(id, from, reply);
         if (reply instanceof Accepted accepted) {
             for (String learnerId : learnerIds) {
                 network.send(id, learnerId, accepted);
             }
+        }
+    }
+
+    private void recordReplyEvent(Message reply) {
+        switch (reply) {
+            case Promise promise -> network.eventLog().promise(id, promise.ballot().toString(), promise.slot(),
+                    "promised " + promise.ballot());
+            case Accepted accepted -> network.eventLog().accepted(id, accepted.ballot().toString(), accepted.slot(),
+                    String.valueOf(accepted.value()), "accepted " + accepted.value() + " under " + accepted.ballot());
+            case Nack nack -> network.eventLog().nack(id, nack.ballot().toString(), nack.slot(),
+                    "rejected " + nack.ballot() + " (already promised " + nack.promisedBallot() + ")");
+            default -> throw new IllegalStateException("an acceptor's reply should only ever be Promise/Accepted/Nack, got " + reply);
         }
     }
 

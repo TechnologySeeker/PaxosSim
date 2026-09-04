@@ -1,11 +1,43 @@
 package paxossim.core;
 
+import paxossim.events.Event;
+import paxossim.events.EventLog;
+
 import java.util.Map;
 
 import static paxossim.testing.Assertions.assertEquals;
 import static paxossim.testing.Assertions.assertTrue;
 
 public class StateMachineTest {
+
+    public void testNoArgConstructorRecordsNoEventsEvenWhenApplying() {
+        Log log = new Log();
+        log.recordChosen(0, new Ballot(1, "P"), Command.set("x", "1"));
+        StateMachine stateMachine = new StateMachine();
+
+        stateMachine.applyChosenEntries(log); // must not throw despite no event log attached
+
+        assertEquals("1", stateMachine.get("x"), "applying should still work with no event log attached");
+    }
+
+    public void testEventLogConstructorRecordsAStateChangeEventPerAppliedCommand() {
+        Log log = new Log();
+        Command x = Command.set("x", "1");
+        Command y = Command.set("y", "2");
+        log.recordChosen(0, new Ballot(1, "P"), x);
+        log.recordChosen(1, new Ballot(1, "P"), y);
+        EventLog eventLog = new EventLog();
+        StateMachine stateMachine = new StateMachine("A", eventLog);
+
+        stateMachine.applyChosenEntries(log);
+
+        assertEquals(2, eventLog.events().size(), "one STATE_CHANGE event should be recorded per applied command");
+        Event first = eventLog.events().get(0);
+        assertEquals("STATE_CHANGE", first.type(), "type should be STATE_CHANGE");
+        assertEquals("A", first.toNode(), "the node label should be recorded");
+        assertEquals(Integer.valueOf(0), first.slot(), "the slot should be recorded");
+        assertEquals(x.toString(), first.value(), "the applied command should be recorded");
+    }
 
     public void testAppliesChosenEntriesInSlotOrder() {
         Log log = new Log();
