@@ -32,7 +32,7 @@ This is a **simulation**, not a production consensus service:
   `SimulatedNetwork` that can deliver, drop, delay, reorder, partition, and
   reconnect messages on command.
 - No threads, sockets, or timers — message delivery is driven explicitly by
-  tests (`network.deliver_next()`, `network.deliver_all()`, ...), so every
+  tests (`network.deliverNext()`, `network.deliverAll()`, ...), so every
   scenario (including failures and race conditions) is fully reproducible.
 - The replicated state machine is a minimal key-value store (`SET`,
   `DELETE`) — not a database.
@@ -107,6 +107,30 @@ makes failure injection (dropped messages, partitions, delayed/reordered
 delivery, disconnect/reconnect) possible without real concurrency.
 
 ## Project structure
+
+```
+src/
+├── main/java/paxossim/
+│   ├── core/                  # ballots, commands, log entries, acceptor state
+│   │   ├── Ballot.java
+│   │   ├── Command.java
+│   │   ├── LogEntry.java
+│   │   └── AcceptorState.java
+│   └── message/                # Paxos protocol message types
+│       ├── Message.java
+│       ├── Prepare.java
+│       ├── Promise.java
+│       ├── AcceptRequest.java
+│       ├── Accepted.java
+│       └── Nack.java
+└── test/java/paxossim/
+    ├── RunAllTests.java
+    ├── core/
+    │   └── BallotTest.java
+    └── testing/                 # dependency-free assertion + test runner
+        ├── Assertions.java
+        └── TestRunner.java
+```
 
 ## Status
 
