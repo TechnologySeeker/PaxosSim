@@ -9,7 +9,9 @@ import paxossim.message.Promise;
 import paxossim.role.Acceptor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static paxossim.testing.Assertions.assertEquals;
 import static paxossim.testing.Assertions.assertTrue;
@@ -78,6 +80,89 @@ public class SimulatedNetworkTest {
         SimulatedNetwork network = new SimulatedNetwork();
 
         assertTrue(network.dropNext() == null, "dropping from an empty network should be a no-op");
+    }
+
+    public void testDropWhereRemovesEveryMatchingEnvelopeWherever() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        List<Message> receivedAtB = new ArrayList<>();
+        List<Message> receivedAtC = new ArrayList<>();
+        network.register("B", (from, message) -> receivedAtB.add(message));
+        network.register("C", (from, message) -> receivedAtC.add(message));
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 0));
+        network.send("A", "C", new Prepare(new Ballot(1, "A"), 1));
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 2));
+
+        int dropped = network.dropWhere(envelope -> envelope.to().equals("B"));
+        network.deliverAll();
+
+        assertEquals(2, dropped, "both envelopes addressed to B should have been dropped");
+        assertEquals(0, receivedAtB.size(), "B should receive nothing");
+        assertEquals(1, receivedAtC.size(), "C should be unaffected");
+    }
+
+    public void testReorderPendingChangesDeliveryOrder() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        List<Message> received = new ArrayList<>();
+        network.register("B", (from, message) -> received.add(message));
+        Message first = new Prepare(new Ballot(1, "A"), 0);
+        Message second = new Prepare(new Ballot(1, "A"), 1);
+        network.send("A", "B", first);
+        network.send("A", "B", second);
+
+        network.reorderPending(pending -> {
+            List<Envelope> reversed = new ArrayList<>(pending);
+            Collections.reverse(reversed);
+            return reversed;
+        });
+        network.deliverAll();
+
+        assertEquals(second, received.get(0), "the reordered queue should deliver the reversed order");
+        assertEquals(first, received.get(1), "the reordered queue should deliver the reversed order");
+    }
+
+    public void testPartitionBlocksMessagesAcrossTheBoundary() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        List<Message> receivedAtB = new ArrayList<>();
+        network.register("B", (from, message) -> receivedAtB.add(message));
+        network.partition(Set.of("B"));
+
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 0));
+        network.deliverAll();
+
+        assertEquals(0, receivedAtB.size(), "a message crossing the partition boundary should be dropped");
+    }
+
+    public void testPartitionAllowsMessagesWithinTheSameSide() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        List<Message> receivedAtB = new ArrayList<>();
+        List<Message> receivedAtC = new ArrayList<>();
+        network.register("B", (from, message) -> receivedAtB.add(message));
+        network.register("C", (from, message) -> receivedAtC.add(message));
+        // Isolate B and C together, away from A: they can still reach each other.
+        network.partition(Set.of("B", "C"));
+
+        network.send("B", "C", new Prepare(new Ballot(1, "B"), 0));
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 0));
+        network.deliverAll();
+
+        assertEquals(1, receivedAtC.size(), "B and C are on the same side of the partition and should still connect");
+        assertEquals(0, receivedAtB.size(), "A is on the other side of the partition and should be blocked");
+    }
+
+    public void testHealPartitionRestoresDelivery() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        List<Message> receivedAtB = new ArrayList<>();
+        network.register("B", (from, message) -> receivedAtB.add(message));
+        network.partition(Set.of("B"));
+        network.send("A", "B", new Prepare(new Ballot(1, "A"), 0));
+        network.deliverAll();
+        assertEquals(0, receivedAtB.size(), "the first message should be blocked while partitioned");
+
+        network.healPartition();
+        network.send("A", "B", new Prepare(new Ballot(2, "A"), 0));
+        network.deliverAll();
+
+        assertEquals(1, receivedAtB.size(), "delivery should resume normally once the partition heals");
     }
 
     public void testDeliverNextDispatchesToRegisteredHandler() {

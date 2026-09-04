@@ -3,17 +3,24 @@ package paxossim.network;
 import paxossim.message.Message;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 /**
  * An in-process, single-threaded stand-in for the network: a FIFO queue of
  * {@link Envelope}s that a test (or later, a driver loop) drains explicitly
  * via {@link #deliverNext()} / {@link #deliverAll()}. There are no threads,
- * sockets, or timers, so a whole run — including message loss and
- * reordering, once those are added — is fully deterministic and replayable.
+ * sockets, or timers, so a whole run — including message loss, reordering,
+ * and partitions — is fully deterministic and replayable: every failure
+ * mode is something a test asks for explicitly, never something that just
+ * happens.
  *
  * <p>Nodes may {@link #register} a handler for their id so that delivery
  * dispatches straight into their message-handling code (which can itself
@@ -31,6 +38,7 @@ public final class SimulatedNetwork {
 
     private final Deque<Envelope> queue = new ArrayDeque<>();
     private final Map<String, MessageHandler> handlers = new HashMap<>();
+    private Set<String> isolatedNodes = Set.of();
 
     /** Registers {@code handler} to receive messages addressed to {@code nodeId}. */
     public void register(String nodeId, MessageHandler handler) {
@@ -54,17 +62,21 @@ public final class SimulatedNetwork {
 
     /**
      * Delivers the oldest pending envelope, in FIFO send order: dispatches
-     * it to the recipient's registered handler, if any. Returns the
-     * delivered envelope, or {@code null} if the queue was empty.
+     * it to the recipient's registered handler, if any, unless the current
+     * {@link #partition} blocks it — in which case it's silently dropped,
+     * same as a message to an unregistered recipient. Returns the delivered
+     * envelope (dropped or not), or {@code null} if the queue was empty.
      */
     public Envelope deliverNext() {
         Envelope envelope = queue.pollFirst();
         if (envelope == null) {
             return null;
         }
-        MessageHandler handler = handlers.get(envelope.to());
-        if (handler != null) {
-            handler.onMessage(envelope.from(), envelope.message());
+        if (!isBlockedByPartition(envelope.from(), envelope.to())) {
+            MessageHandler handler = handlers.get(envelope.to());
+            if (handler != null) {
+                handler.onMessage(envelope.from(), envelope.message());
+            }
         }
         return envelope;
     }
@@ -89,5 +101,50 @@ public final class SimulatedNetwork {
      */
     public Envelope dropNext() {
         return queue.pollFirst();
+    }
+
+    /**
+     * Discards every pending envelope matching {@code predicate}, wherever
+     * it sits in the queue, without delivering it — for injecting loss that
+     * isn't just "the next message" (e.g. every message to one node).
+     * Returns how many envelopes were dropped.
+     */
+    public int dropWhere(Predicate<Envelope> predicate) {
+        int before = queue.size();
+        queue.removeIf(predicate);
+        return before - queue.size();
+    }
+
+    /**
+     * Replaces the pending queue with {@code reordering} applied to its
+     * current FIFO order, so a test can simulate messages arriving out of
+     * send order. The transform is given the full pending list (oldest
+     * first) and must return the list in whatever new delivery order it
+     * wants; nothing is dropped or added.
+     */
+    public void reorderPending(UnaryOperator<List<Envelope>> reordering) {
+        List<Envelope> current = new ArrayList<>(queue);
+        List<Envelope> reordered = reordering.apply(current);
+        queue.clear();
+        queue.addAll(reordered);
+    }
+
+    /**
+     * Partitions the network: nodes in {@code isolatedNodes} can still reach
+     * each other, and nodes outside it can still reach each other, but any
+     * message crossing that boundary is silently dropped on delivery until
+     * {@link #healPartition()} is called. Replaces any previous partition.
+     */
+    public void partition(Set<String> isolatedNodes) {
+        this.isolatedNodes = Set.copyOf(isolatedNodes);
+    }
+
+    /** Heals the current partition, if any: every node can reach every other node again. */
+    public void healPartition() {
+        this.isolatedNodes = Set.of();
+    }
+
+    private boolean isBlockedByPartition(String from, String to) {
+        return isolatedNodes.contains(from) != isolatedNodes.contains(to);
     }
 }
