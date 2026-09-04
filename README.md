@@ -126,6 +126,8 @@ src/
 │   ├── network/                 # deterministic in-process message delivery
 │   │   ├── Envelope.java
 │   │   └── SimulatedNetwork.java
+│   ├── node/                    # cluster member combining all Paxos roles
+│   │   └── Node.java
 │   └── role/                    # proposer/acceptor/learner roles
 │       └── Acceptor.java
 └── test/java/paxossim/
@@ -134,6 +136,8 @@ src/
     │   └── BallotTest.java
     ├── network/
     │   └── SimulatedNetworkTest.java
+    ├── node/
+    │   └── NodeTest.java
     ├── role/
     │   └── AcceptorTest.java
     └── testing/                 # dependency-free assertion + test runner
