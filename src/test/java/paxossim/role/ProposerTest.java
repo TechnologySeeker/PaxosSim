@@ -1,6 +1,8 @@
 package paxossim.role;
 
 import paxossim.core.Ballot;
+import paxossim.core.Command;
+import paxossim.message.AcceptRequest;
 import paxossim.network.SimulatedNetwork;
 import paxossim.node.Node;
 
@@ -88,6 +90,67 @@ public class ProposerTest {
 
         assertEquals(0, proposer.promiseCount(), "starting a new round should reset previously collected promises");
         assertTrue(!proposer.hasQuorum(), "quorum should not carry over into a fresh round");
+    }
+
+    /**
+     * The core Paxos safety property: acceptor A already accepted Y (from an
+     * earlier round), acceptor B never accepted anything. A new proposer
+     * with its own original value X must adopt Y, not propose X, or the
+     * safety guarantee that a value already accepted by (potentially) a
+     * quorum is never overwritten would break.
+     */
+    public void testChoosesHighestAcceptedValueOverOwnOriginalValue() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("A", network);
+        new Node("B", network);
+        new Node("C", network);
+        Command y = Command.set("x", "Y");
+        // An earlier round already got Y accepted at A only; B and C never saw it.
+        network.send("P0", "A", new AcceptRequest(new Ballot(1, "P0"), 0, y));
+        Proposer proposer = new Proposer("P", network, List.of("A", "B", "C"));
+        Command x = Command.set("x", "X");
+
+        proposer.sendPrepare(new Ballot(2, "P"), 0);
+        network.deliverAll();
+
+        assertTrue(proposer.hasQuorum(), "quorum should be reached before choosing a value");
+        Command chosen = proposer.chooseValue(x);
+        assertEquals(y, chosen, "the proposer must adopt A's already-accepted value instead of its own");
+    }
+
+    public void testChoosesOwnValueWhenNoPromiseCarriesAnAcceptedValue() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("A", network);
+        new Node("B", network);
+        new Node("C", network);
+        Proposer proposer = new Proposer("P", network, List.of("A", "B", "C"));
+        Command x = Command.set("x", "X");
+
+        proposer.sendPrepare(new Ballot(1, "P"), 0);
+        network.deliverAll();
+
+        Command chosen = proposer.chooseValue(x);
+        assertEquals(x, chosen, "with nothing previously accepted, the proposer is free to use its own value");
+    }
+
+    public void testChoosesValueFromTheHighestAcceptedBallotAmongSeveral() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("A", network);
+        new Node("B", network);
+        new Node("C", network);
+        Command y = Command.set("x", "Y");
+        Command z = Command.set("x", "Z");
+        // A accepted Y at ballot (1,P0); B later accepted Z at the higher ballot (2,P1).
+        network.send("P0", "A", new AcceptRequest(new Ballot(1, "P0"), 0, y));
+        network.send("P1", "B", new AcceptRequest(new Ballot(2, "P1"), 0, z));
+        Proposer proposer = new Proposer("P", network, List.of("A", "B", "C"));
+        Command x = Command.set("x", "X");
+
+        proposer.sendPrepare(new Ballot(3, "P"), 0);
+        network.deliverAll();
+
+        Command chosen = proposer.chooseValue(x);
+        assertEquals(z, chosen, "the proposer must adopt the value from the highest accepted ballot (B's Z), not A's older Y or its own X");
     }
 
     public static void main(String[] args) {

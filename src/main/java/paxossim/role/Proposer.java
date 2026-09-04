@@ -1,6 +1,7 @@
 package paxossim.role;
 
 import paxossim.core.Ballot;
+import paxossim.core.Command;
 import paxossim.message.AcceptRequest;
 import paxossim.message.Accepted;
 import paxossim.message.Message;
@@ -67,6 +68,27 @@ public final class Proposer {
     /** Whether a majority of the full cluster ({@code acceptorIds}) has promised. */
     public boolean hasQuorum() {
         return promises.size() > acceptorIds.size() / 2;
+    }
+
+    /**
+     * The Paxos safety rule for Phase 2: if any collected promise carries a
+     * previously accepted value, the proposer must re-propose the value
+     * belonging to the <em>highest</em> such accepted ballot — never its own
+     * original value — since some earlier round may have already gotten
+     * that value accepted by a quorum. Only when no promise carries an
+     * accepted value at all is the proposer free to propose
+     * {@code originalValue}.
+     */
+    public Command chooseValue(Command originalValue) {
+        Command chosen = originalValue;
+        Ballot highestAccepted = Ballot.NONE;
+        for (Promise promise : promises.values()) {
+            if (promise.acceptedValue() != null && promise.acceptedBallot().compareTo(highestAccepted) > 0) {
+                highestAccepted = promise.acceptedBallot();
+                chosen = promise.acceptedValue();
+            }
+        }
+        return chosen;
     }
 
     private void onMessage(String from, Message message) {
