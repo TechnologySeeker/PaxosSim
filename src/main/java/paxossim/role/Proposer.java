@@ -15,16 +15,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
- * The proposer role, Phase 1 (Prepare): broadcasts a {@link Prepare} to
- * every acceptor in the cluster and collects the {@link Promise} replies,
- * so the proposer can tell once a majority quorum has promised and it's
- * safe to move on to Phase 2. A majority is more than half of the full
- * cluster ({@code acceptorIds}), not just of whoever has replied so far —
- * that's what lets the proposer keep making progress with one acceptor
- * down.
+ * The proposer role: Phase 1 (Prepare) broadcasts a {@link Prepare} to every
+ * acceptor and collects the {@link Promise} replies, so the proposer can
+ * tell once a majority quorum has promised and it's safe to move on to
+ * Phase 2 (Accept), which broadcasts an {@link AcceptRequest} and collects
+ * {@link Accepted} replies until a majority has accepted, at which point the
+ * value is chosen. A majority is always more than half of the full cluster
+ * ({@code acceptorIds}), not just of whoever has replied so far — that's
+ * what lets the proposer keep making progress with one acceptor down.
  */
 public final class Proposer {
 
@@ -32,6 +34,7 @@ public final class Proposer {
     private final SimulatedNetwork network;
     private final List<String> acceptorIds;
     private final Map<String, Promise> promises = new HashMap<>();
+    private final Map<String, Accepted> accepteds = new HashMap<>();
     private final Set<String> nackedBy = new HashSet<>();
 
     public Proposer(String id, SimulatedNetwork network, List<String> acceptorIds) {
@@ -91,17 +94,54 @@ public final class Proposer {
         return chosen;
     }
 
+    /** Broadcasts an AcceptRequest(ballot, slot, value) to every acceptor, resetting any previously tracked Accepted replies. */
+    public void sendAccept(Ballot ballot, int slot, Command value) {
+        accepteds.clear();
+        nackedBy.clear();
+        for (String acceptorId : acceptorIds) {
+            network.send(id, acceptorId, new AcceptRequest(ballot, slot, value));
+        }
+    }
+
+    /** The Accepted replies collected so far, keyed by the acceptor that sent them. */
+    public Map<String, Accepted> accepteds() {
+        return Map.copyOf(accepteds);
+    }
+
+    /** How many distinct acceptors have accepted. */
+    public int acceptedCount() {
+        return accepteds.size();
+    }
+
+    /** Whether a majority of the full cluster ({@code acceptorIds}) has accepted. */
+    public boolean hasAcceptedQuorum() {
+        return accepteds.size() > acceptorIds.size() / 2;
+    }
+
+    /**
+     * The value chosen for this slot, once a majority of acceptors has
+     * accepted it — empty until then. Paxos safety guarantees every
+     * Accepted reply in a quorum carries the same value, so any one of them
+     * names the chosen value.
+     */
+    public Optional<Command> chosenValue() {
+        if (!hasAcceptedQuorum()) {
+            return Optional.empty();
+        }
+        return accepteds.values().stream().findFirst().map(Accepted::value);
+    }
+
     private void onMessage(String from, Message message) {
         switch (message) {
             case Promise promise -> promises.put(from, promise);
+            case Accepted accepted -> accepteds.put(from, accepted);
             case Nack nack -> nackedBy.add(from);
             case Prepare prepare -> throw unexpected(message);
             case AcceptRequest request -> throw unexpected(message);
-            case Accepted accepted -> throw unexpected(message);
         }
     }
 
     private IllegalArgumentException unexpected(Message message) {
-        return new IllegalArgumentException("proposer " + id + " has no Phase 2 logic yet to handle " + message);
+        return new IllegalArgumentException("proposer " + id + " received a message no proposer should ever get: " + message);
     }
 }

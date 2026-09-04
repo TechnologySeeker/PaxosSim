@@ -7,6 +7,7 @@ import paxossim.network.SimulatedNetwork;
 import paxossim.node.Node;
 
 import java.util.List;
+import java.util.Optional;
 
 import static paxossim.testing.Assertions.assertEquals;
 import static paxossim.testing.Assertions.assertTrue;
@@ -151,6 +152,86 @@ public class ProposerTest {
 
         Command chosen = proposer.chooseValue(x);
         assertEquals(z, chosen, "the proposer must adopt the value from the highest accepted ballot (B's Z), not A's older Y or its own X");
+    }
+
+    public void testSendAcceptBroadcastsToEveryAcceptor() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        Proposer proposer = new Proposer("P", network, List.of("A", "B", "C"));
+
+        proposer.sendAccept(new Ballot(1, "P"), 0, Command.set("x", "10"));
+
+        assertEquals(3, network.pendingCount(), "an accept request should be sent to every acceptor in the cluster");
+    }
+
+    public void testValueChosenOnceAcceptedQuorumReached() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("A", network);
+        new Node("B", network);
+        new Node("C", network);
+        Proposer proposer = new Proposer("P", network, List.of("A", "B", "C"));
+        Command value = Command.set("x", "10");
+
+        proposer.sendAccept(new Ballot(1, "P"), 0, value);
+        network.deliverAll();
+
+        assertTrue(proposer.hasAcceptedQuorum(), "a majority of acceptors accepting should be a quorum");
+        assertEquals(Optional.of(value), proposer.chosenValue(), "the value should be declared chosen once quorum accepts");
+    }
+
+    public void testValueNotChosenWithOnlyOneAccepted() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("A", network);
+        new Node("B", network);
+        new Node("C", network);
+        Proposer proposer = new Proposer("P", network, List.of("A", "B", "C"));
+
+        proposer.sendAccept(new Ballot(1, "P"), 0, Command.set("x", "10"));
+        // FIFO order: the 3 AcceptRequests are delivered first (queuing their
+        // Accepted replies behind the remaining requests), then just the first reply.
+        for (int i = 0; i < 4; i++) {
+            network.deliverNext();
+        }
+
+        assertEquals(1, proposer.acceptedCount(), "only one acceptor should have accepted so far");
+        assertTrue(!proposer.hasAcceptedQuorum(), "a single accepted reply out of three should not be a quorum");
+        assertEquals(Optional.empty(), proposer.chosenValue(), "the value should not be chosen before quorum");
+    }
+
+    public void testAcceptPhaseStillReachesQuorumWithOneNodeDown() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("A", network);
+        new Node("B", network);
+        // "C" is down: no node registered, so its AcceptRequest is dropped silently.
+        Proposer proposer = new Proposer("P", network, List.of("A", "B", "C"));
+        Command value = Command.set("x", "10");
+
+        proposer.sendAccept(new Ballot(1, "P"), 0, value);
+        network.deliverAll();
+
+        assertEquals(2, proposer.acceptedCount(), "the two live acceptors should have accepted");
+        assertTrue(proposer.hasAcceptedQuorum(), "a majority should still be reachable with one acceptor down");
+        assertEquals(Optional.of(value), proposer.chosenValue(), "the value should still be chosen with one node down");
+    }
+
+    public void testFullPrepareThenAcceptFlowChoosesTheSafeValue() {
+        SimulatedNetwork network = new SimulatedNetwork();
+        new Node("A", network);
+        new Node("B", network);
+        new Node("C", network);
+        Command y = Command.set("x", "Y");
+        // An earlier round already got Y accepted at A only.
+        network.send("P0", "A", new AcceptRequest(new Ballot(1, "P0"), 0, y));
+        Proposer proposer = new Proposer("P", network, List.of("A", "B", "C"));
+        Command x = Command.set("x", "X");
+
+        proposer.sendPrepare(new Ballot(2, "P"), 0);
+        network.deliverAll();
+        Command chosenForRound = proposer.chooseValue(x);
+        proposer.sendAccept(new Ballot(2, "P"), 0, chosenForRound);
+        network.deliverAll();
+
+        assertTrue(proposer.hasAcceptedQuorum(), "the accept phase should reach quorum");
+        assertEquals(Optional.of(y), proposer.chosenValue(), "the value ultimately chosen must be A's already-accepted Y, not the proposer's X");
     }
 
     public static void main(String[] args) {
