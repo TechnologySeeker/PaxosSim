@@ -144,7 +144,8 @@ src/
     │   ├── SingleDecreePaxosTest.java
     │   ├── MultiSlotPaxosTest.java
     │   ├── ReplicationConvergenceTest.java
-    │   └── FailureScenarioTest.java
+    │   ├── FailureScenarioTest.java
+    │   └── SafetyInvariantsTest.java
     ├── network/
     │   └── SimulatedNetworkTest.java
     ├── node/
@@ -153,8 +154,10 @@ src/
     │   ├── AcceptorTest.java
     │   ├── ProposerTest.java
     │   └── LearnerTest.java
-    └── testing/                 # dependency-free assertion + test runner
+    └── testing/                 # dependency-free assertion + test runner, safety invariant checks
         ├── Assertions.java
+        ├── PaxosInvariants.java
+        ├── PaxosInvariantsTest.java
         └── TestRunner.java
 ```
 

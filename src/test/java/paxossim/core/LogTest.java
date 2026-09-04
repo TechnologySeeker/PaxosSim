@@ -49,14 +49,33 @@ public class LogTest {
         assertEquals(List.of(0, 1, 2), slotsInOrder, "entries() should be ordered by slot regardless of insertion order");
     }
 
-    public void testRecordChosenOverwritesAPreviousEntryForTheSameSlot() {
+    public void testRecordChosenIsIdempotentForTheSameValue() {
         Log log = new Log();
-        log.recordChosen(0, new Ballot(1, "A"), Command.set("x", "old"));
+        Command value = Command.set("x", "10");
+        log.recordChosen(0, new Ballot(1, "A"), value);
 
-        log.recordChosen(0, new Ballot(2, "B"), Command.set("x", "new"));
+        // A second learner (or the same one, twice) re-confirming the same
+        // already-chosen value must not be treated as a conflict.
+        log.recordChosen(0, new Ballot(2, "B"), value);
 
-        assertEquals(1, log.size(), "re-recording the same slot should not grow the log");
-        assertEquals(Optional.of(Command.set("x", "new")), log.chosenValue(0), "the latest recorded value should win");
+        assertEquals(1, log.size(), "re-confirming the same value should not grow the log");
+        assertEquals(Optional.of(value), log.chosenValue(0), "the value should be unchanged");
+    }
+
+    public void testRecordChosenRejectsATrueConflictForTheSameSlot() {
+        Log log = new Log();
+        Command original = Command.set("x", "10");
+        log.recordChosen(0, new Ballot(1, "A"), original);
+        boolean threw = false;
+
+        try {
+            log.recordChosen(0, new Ballot(2, "B"), Command.set("x", "20"));
+        } catch (IllegalStateException expected) {
+            threw = true;
+        }
+
+        assertTrue(threw, "recording a different value for an already-chosen slot must be rejected as a safety violation");
+        assertEquals(Optional.of(original), log.chosenValue(0), "the original chosen value must survive the rejected conflict");
     }
 
     public static void main(String[] args) {
