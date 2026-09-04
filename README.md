@@ -1,0 +1,137 @@
+# PaxosSim
+
+## What I'm building
+
+A small, deterministic simulation of the Paxos consensus algorithm driving a
+replicated key-value state machine across a 3-node cluster (Node A, Node B,
+Node C). Each node plays all three Paxos roles — proposer, acceptor, and
+learner. Nodes talk over a simulated, in-process network rather than real
+sockets, so tests can control exactly when (and whether) messages are
+delivered.
+
+Client commands (`SET x 10`, `DELETE x`, ...) are agreed on one replicated
+log slot at a time via single-decree Paxos instances (the beginning of
+Multi-Paxos). Once a slot is chosen, every node applies it to its local
+key-value store in slot order, so all healthy nodes converge on the same
+state.
+
+## Why Paxos
+
+Paxos is the reference algorithm for achieving consensus on a single value
+among unreliable nodes that can drop messages or go offline, without
+tolerating malicious (Byzantine) behavior. Building it from scratch —
+ballots, quorums, the "adopt the highest previously-accepted value" rule —
+is the clearest way to demonstrate and test the safety guarantees that
+distributed systems built on consensus rely on.
+
+## Scope
+
+This is a **simulation**, not a production consensus service:
+
+- No real networking — nodes exchange messages through an in-process
+  `SimulatedNetwork` that can deliver, drop, delay, reorder, partition, and
+  reconnect messages on command.
+- No threads, sockets, or timers — message delivery is driven explicitly by
+  tests (`network.deliver_next()`, `network.deliver_all()`, ...), so every
+  scenario (including failures and race conditions) is fully reproducible.
+- The replicated state machine is a minimal key-value store (`SET`,
+  `DELETE`) — not a database.
+
+## What I'm NOT building
+
+This is an educational implementation intended to demonstrate consensus,
+replicated logs, and failure handling. It deliberately does **not**
+implement:
+
+- durable disk persistence
+- real networking (sockets, RPC, serialization)
+- Byzantine fault tolerance
+- production leader leases / stable leader election
+- log compaction or snapshots
+- dynamic cluster membership (reconfiguration)
+- optimized Multi-Paxos leader reuse (every slot runs its own Phase 1/2)
+
+These omissions are intentional scope cuts, not oversights, and are meant to
+keep the project small enough to build and test thoroughly rather than
+"complete" and untested.
+
+## High-level architecture
+
+```
+                    Client
+                       │
+                       │ SET x=10
+                       ▼
+                 ┌───────────┐
+                 │ Proposer A│
+                 └─────┬─────┘
+                       │
+                  Prepare(1,A)
+              ┌────────┼────────┐
+              ▼        ▼        ▼
+           Node A    Node B    Node C
+          Acceptor  Acceptor  Acceptor
+              │        │        │
+              └────Promise──────┘
+                       │
+                       ▼
+                 Proposer A
+                       │
+                Accept(x=10)
+              ┌────────┼────────┐
+              ▼        ▼        ▼
+           Node A    Node B    Node C
+              │        │
+              └─ quorum┘
+                   │
+                   ▼
+             VALUE CHOSEN
+                   │
+                   ▼
+            replicated log
+                   │
+                   ▼
+             state machine
+```
+
+Nodes A, B, and C each connect only through a `SimulatedNetwork`:
+
+```
+Node A ─┐
+Node B ─┼── SimulatedNetwork
+Node C ─┘
+```
+
+The network is the single seam controlling message delivery, which is what
+makes failure injection (dropped messages, partitions, delayed/reordered
+delivery, disconnect/reconnect) possible without real concurrency.
+
+## Project structure
+
+```
+paxos/
+├── ballot.py          # comparable (number, node_id) ballots
+├── messages.py         # Prepare/Promise/AcceptRequest/Accepted/Nack
+├── acceptor.py         # Paxos acceptor role
+├── proposer.py         # Paxos proposer role (Phase 1 + Phase 2)
+├── learner.py          # tracks quorum and learns chosen values
+├── network.py           # SimulatedNetwork: deliver/drop/delay/partition
+├── node.py              # a cluster node (proposer + acceptor + learner)
+├── state_machine.py     # replicated key-value store
+└── cluster.py           # wires nodes + network together
+
+tests/
+├── test_acceptor.py
+├── test_proposer.py
+├── test_consensus.py
+├── test_failures.py
+├── test_partitions.py
+└── test_replication.py
+```
+
+## Status
+
+Scaffold only — modules are currently empty. See the build order and test
+plan tracked alongside this project for the implementation sequence
+(acceptor → simulated network → proposer phases → single-decree Paxos tests
+→ replicated log → failure injection → integration tests).
