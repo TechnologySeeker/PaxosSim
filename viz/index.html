@@ -243,6 +243,10 @@ const EMBEDDED_SAMPLES = {"events-normal.json":{"nodes":["A","B","C"],"events":[
     const sample = EMBEDDED_SAMPLES[file];
     if (!sample) { alert("Unknown sample: " + file); return; }
     loadData(sample);
+    // Reset to the placeholder so re-picking the same sample later still
+    // fires a "change" event (browsers don't fire one for reselecting the
+    // option that's already selected).
+    e.target.value = "";
   });
 
   document.getElementById("fileInput").addEventListener("change", function (e) {
