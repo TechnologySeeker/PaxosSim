@@ -123,12 +123,17 @@ src/
 │   │   ├── AcceptRequest.java
 │   │   ├── Accepted.java
 │   │   └── Nack.java
+│   ├── network/                 # deterministic in-process message delivery
+│   │   ├── Envelope.java
+│   │   └── SimulatedNetwork.java
 │   └── role/                    # proposer/acceptor/learner roles
 │       └── Acceptor.java
 └── test/java/paxossim/
     ├── RunAllTests.java
     ├── core/
     │   └── BallotTest.java
+    ├── network/
+    │   └── SimulatedNetworkTest.java
     ├── role/
     │   └── AcceptorTest.java
     └── testing/                 # dependency-free assertion + test runner
