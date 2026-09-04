@@ -129,7 +129,8 @@ src/
 │   ├── node/                    # cluster member combining all Paxos roles
 │   │   └── Node.java
 │   └── role/                    # proposer/acceptor/learner roles
-│       └── Acceptor.java
+│       ├── Acceptor.java
+│       └── Proposer.java
 └── test/java/paxossim/
     ├── RunAllTests.java
     ├── core/
@@ -139,7 +140,8 @@ src/
     ├── node/
     │   └── NodeTest.java
     ├── role/
-    │   └── AcceptorTest.java
+    │   ├── AcceptorTest.java
+    │   └── ProposerTest.java
     └── testing/                 # dependency-free assertion + test runner
         ├── Assertions.java
         └── TestRunner.java
