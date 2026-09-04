@@ -3,6 +3,7 @@ package paxossim;
 import paxossim.core.BallotTest;
 import paxossim.core.LogTest;
 import paxossim.core.StateMachineTest;
+import paxossim.integration.FailureScenarioTest;
 import paxossim.integration.MultiSlotPaxosTest;
 import paxossim.integration.ReplicationConvergenceTest;
 import paxossim.integration.SingleDecreePaxosTest;
@@ -21,6 +22,7 @@ public final class RunAllTests {
     public static void main(String[] args) {
         TestRunner.run(BallotTest.class, LogTest.class, StateMachineTest.class, AcceptorTest.class,
                 ProposerTest.class, LearnerTest.class, SimulatedNetworkTest.class, NodeTest.class,
-                SingleDecreePaxosTest.class, MultiSlotPaxosTest.class, ReplicationConvergenceTest.class);
+                SingleDecreePaxosTest.class, MultiSlotPaxosTest.class, ReplicationConvergenceTest.class,
+                FailureScenarioTest.class);
     }
 }

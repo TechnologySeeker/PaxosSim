@@ -143,7 +143,8 @@ src/
     ├── integration/              # end-to-end, multi-role Paxos scenarios
     │   ├── SingleDecreePaxosTest.java
     │   ├── MultiSlotPaxosTest.java
-    │   └── ReplicationConvergenceTest.java
+    │   ├── ReplicationConvergenceTest.java
+    │   └── FailureScenarioTest.java
     ├── network/
     │   └── SimulatedNetworkTest.java
     ├── node/
