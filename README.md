@@ -111,10 +111,11 @@ delivery, disconnect/reconnect) possible without real concurrency.
 ```
 src/
 ├── main/java/paxossim/
-│   ├── core/                  # ballots, commands, log entries, acceptor state
+│   ├── core/                  # ballots, commands, replicated log, acceptor state
 │   │   ├── Ballot.java
 │   │   ├── Command.java
 │   │   ├── LogEntry.java
+│   │   ├── Log.java
 │   │   └── AcceptorState.java
 │   ├── message/                 # Paxos protocol message types
 │   │   ├── Message.java
@@ -134,9 +135,11 @@ src/
 └── test/java/paxossim/
     ├── RunAllTests.java
     ├── core/
-    │   └── BallotTest.java
+    │   ├── BallotTest.java
+    │   └── LogTest.java
     ├── integration/              # end-to-end, multi-role Paxos scenarios
-    │   └── SingleDecreePaxosTest.java
+    │   ├── SingleDecreePaxosTest.java
+    │   └── MultiSlotPaxosTest.java
     ├── network/
     │   └── SimulatedNetworkTest.java
     ├── node/
