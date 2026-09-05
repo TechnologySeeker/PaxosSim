@@ -25,6 +25,16 @@ public class ScenarioRunnerTest {
                 "3 healthy replicas each applying 2 slots should record 6 STATE_CHANGE events");
     }
 
+    public void testRunNormalAppliesStateSoonAfterEachSlotIsChosenNotBatchedAtTheEnd() {
+        EventLog eventLog = ScenarioRunner.runNormal();
+
+        int firstChosenSeq = eventsOfType(eventLog, "CHOSEN").get(0).seq();
+        int firstStateChangeSeq = eventsOfType(eventLog, "STATE_CHANGE").get(0).seq();
+
+        assertTrue(firstStateChangeSeq - firstChosenSeq < 20,
+                "state should be applied soon after the first slot is chosen, not batched at the very end of the run");
+    }
+
     public void testRunCompetingProposersEndsWithExactlyOneChosenValuePerSlot() {
         EventLog eventLog = ScenarioRunner.runCompetingProposers();
 
@@ -33,6 +43,10 @@ public class ScenarioRunnerTest {
 
         List<Event> nacks = eventsOfType(eventLog, "NACK");
         assertTrue(!nacks.isEmpty(), "A's preempted accept should have been nacked by at least one acceptor");
+
+        assertHasStateChangeFor(eventLog, "A");
+        assertHasStateChangeFor(eventLog, "B");
+        assertHasStateChangeFor(eventLog, "C");
     }
 
     public void testRunNodeFailureNeverRecordsCRespondingToAnything() {
@@ -49,6 +63,12 @@ public class ScenarioRunnerTest {
 
         assertEquals(Set.of("SET x 10"), distinctValuesForSlot(eventLog, 0),
                 "A and B alone should still reach quorum and agree on the chosen value");
+
+        assertHasStateChangeFor(eventLog, "A");
+        assertHasStateChangeFor(eventLog, "B");
+        boolean cEverAppliedState = eventLog.events().stream()
+                .anyMatch(e -> e.type().equals("STATE_CHANGE") && "C".equals(e.toNode()));
+        assertTrue(!cEverAppliedState, "C should never apply any state since it's down for the whole run");
     }
 
     public void testRunPartitionChoosesAValueDespiteCBeingCutOff() {
@@ -60,6 +80,16 @@ public class ScenarioRunnerTest {
         boolean somethingToCWasDropped = eventLog.events().stream()
                 .anyMatch(e -> e.type().equals("DROPPED") && "C".equals(e.toNode()));
         assertTrue(somethingToCWasDropped, "at least one message to the partitioned-away C should have been dropped");
+
+        assertHasStateChangeFor(eventLog, "A");
+        assertHasStateChangeFor(eventLog, "B");
+        assertHasStateChangeFor(eventLog, "C");
+    }
+
+    private static void assertHasStateChangeFor(EventLog eventLog, String nodeId) {
+        boolean applied = eventLog.events().stream()
+                .anyMatch(e -> e.type().equals("STATE_CHANGE") && nodeId.equals(e.toNode()));
+        assertTrue(applied, "expected at least one STATE_CHANGE event for node " + nodeId);
     }
 
     private static Set<String> distinctValuesForSlot(EventLog eventLog, int slot) {

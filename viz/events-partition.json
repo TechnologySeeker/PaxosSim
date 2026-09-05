@@ -42,6 +42,9 @@
     {"seq":38,"type":"RECEIVE","fromNode":"B","toNode":"C-learner","message":"Accepted","ballot":"(1,A)","slot":0},
     {"seq":39,"type":"CHOSEN","slot":0,"value":"SET x 10","note":"SLOT 0 CHOSEN: SET x 10"},
     {"seq":40,"type":"NOTE","note":"A + B alone (the majority side) still reach quorum despite the partition"},
-    {"seq":41,"type":"NOTE","note":"Partition healed — C rejoins the cluster"}
+    {"seq":41,"type":"STATE_CHANGE","toNode":"A","slot":0,"value":"SET x 10","note":"applied SET x 10 at slot 0"},
+    {"seq":42,"type":"STATE_CHANGE","toNode":"B","slot":0,"value":"SET x 10","note":"applied SET x 10 at slot 0"},
+    {"seq":43,"type":"STATE_CHANGE","toNode":"C","slot":0,"value":"SET x 10","note":"applied SET x 10 at slot 0"},
+    {"seq":44,"type":"NOTE","note":"Partition healed — C rejoins the cluster"}
   ]
 }

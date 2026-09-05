@@ -76,12 +76,16 @@ public final class ScenarioRunner {
         Proposer proposer = new Proposer("proposer", network, ACCEPTOR_IDS);
         runSlot(proposer, network, new Ballot(1, "A"), 0, Command.set("x", "10"));
         eventLog.note("Quorum reached for slot 0 — value chosen");
-        runSlot(proposer, network, new Ballot(1, "A"), 1, Command.set("y", "20"));
-        eventLog.note("Quorum reached for slot 1 — value chosen");
-
         stateMachineA.applyChosenEntries(logA);
         stateMachineB.applyChosenEntries(logB);
         stateMachineC.applyChosenEntries(logC);
+
+        runSlot(proposer, network, new Ballot(1, "A"), 1, Command.set("y", "20"));
+        eventLog.note("Quorum reached for slot 1 — value chosen");
+        stateMachineA.applyChosenEntries(logA);
+        stateMachineB.applyChosenEntries(logB);
+        stateMachineC.applyChosenEntries(logC);
+
         return eventLog;
     }
 
@@ -104,6 +108,9 @@ public final class ScenarioRunner {
         new Learner("A-learner", network, ACCEPTOR_IDS, logA);
         new Learner("B-learner", network, ACCEPTOR_IDS, logB);
         new Learner("C-learner", network, ACCEPTOR_IDS, logC);
+        StateMachine stateMachineA = new StateMachine("A", eventLog);
+        StateMachine stateMachineB = new StateMachine("B", eventLog);
+        StateMachine stateMachineC = new StateMachine("C", eventLog);
 
         Proposer proposerA = new Proposer("proposer-A", network, ACCEPTOR_IDS);
         Proposer proposerB = new Proposer("proposer-B", network, ACCEPTOR_IDS);
@@ -119,6 +126,9 @@ public final class ScenarioRunner {
         proposerB.sendAccept(new Ballot(2, "B"), 0, chosenForB);
         network.deliverAll();
         eventLog.note("A's lower-ballot accept was rejected everywhere — A gets preempted; B's value is chosen");
+        stateMachineA.applyChosenEntries(logA);
+        stateMachineB.applyChosenEntries(logB);
+        stateMachineC.applyChosenEntries(logC);
 
         return eventLog;
     }
@@ -129,16 +139,22 @@ public final class ScenarioRunner {
         SimulatedNetwork network = new SimulatedNetwork(eventLog);
         new Node("A", network, LEARNER_IDS);
         new Node("B", network, LEARNER_IDS);
-        // "C" never comes up.
+        // "C" never comes up — no acceptor, no learner, no state machine: its
+        // whole process is down, so messages addressed to "C-learner" are
+        // just as undelivered (DROPPED) as ones addressed to acceptor "C".
         Log logA = new Log();
         Log logB = new Log();
         new Learner("A-learner", network, ACCEPTOR_IDS, logA);
         new Learner("B-learner", network, ACCEPTOR_IDS, logB);
+        StateMachine stateMachineA = new StateMachine("A", eventLog);
+        StateMachine stateMachineB = new StateMachine("B", eventLog);
 
         Proposer proposer = new Proposer("proposer", network, ACCEPTOR_IDS);
         eventLog.note("C is down for this entire run");
         runSlot(proposer, network, new Ballot(1, "A"), 0, Command.set("x", "10"));
         eventLog.note("A + B alone still reach quorum (2 of 3)");
+        stateMachineA.applyChosenEntries(logA);
+        stateMachineB.applyChosenEntries(logB);
 
         return eventLog;
     }
@@ -156,12 +172,21 @@ public final class ScenarioRunner {
         new Learner("A-learner", network, ACCEPTOR_IDS, logA);
         new Learner("B-learner", network, ACCEPTOR_IDS, logB);
         new Learner("C-learner", network, ACCEPTOR_IDS, logC);
+        StateMachine stateMachineA = new StateMachine("A", eventLog);
+        StateMachine stateMachineB = new StateMachine("B", eventLog);
+        StateMachine stateMachineC = new StateMachine("C", eventLog);
         Proposer proposer = new Proposer("proposer", network, ACCEPTOR_IDS);
 
         network.partition(Set.of("C"));
         eventLog.note("C is partitioned away from the rest of the cluster");
         runSlot(proposer, network, new Ballot(1, "A"), 0, Command.set("x", "10"));
         eventLog.note("A + B alone (the majority side) still reach quorum despite the partition");
+        // C's acceptor was cut off and never accepted anything, but its
+        // learner channel wasn't partitioned, so it still hears enough
+        // Accepted broadcasts from A and B to learn the outcome and apply it.
+        stateMachineA.applyChosenEntries(logA);
+        stateMachineB.applyChosenEntries(logB);
+        stateMachineC.applyChosenEntries(logC);
 
         network.healPartition();
         eventLog.note("Partition healed — C rejoins the cluster");
